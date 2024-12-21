@@ -2582,7 +2582,7 @@ func analyzeQuery(query string) (
 	return path, op, value, remain, i + 1, _vEsc, true
 }
 
-// parseArrayPath parses a string path into its structural components, breaking it into meaningful parts
+// analyzePath parses a string path into its structural components, breaking it into meaningful parts
 // such as the main path, pipe (if present), query parameters, and nested paths. This function is particularly
 // useful for processing JSON-like paths or other hierarchical data representations.
 //
@@ -2658,7 +2658,7 @@ func analyzeQuery(query string) (
 // Edge Cases:
 //   - If no special characters are found, the entire input is stored in `Part`.
 //   - If the path contains an incomplete or invalid query, the function skips the query parsing gracefully.
-func parseArrayPath(path string) (r deeper) {
+func analyzePath(path string) (r deeper) {
 	for i := 0; i < len(path); i++ {
 		if path[i] == '|' {
 			r.Part = path[:i]

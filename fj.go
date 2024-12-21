@@ -713,7 +713,7 @@ func parseArray(c *parser, i int, path string) (int, bool) {
 	var partIdx int
 	var multics []byte
 	var queryIndexes []int
-	rp := parseArrayPath(path)
+	rp := analyzePath(path)
 	if !rp.Arch {
 		n, ok := parseUint(rp.Part)
 		if !ok {
