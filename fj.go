@@ -418,7 +418,7 @@ func (t Context) arrayOrMap(vc byte, valueSize bool) (result queryContext) {
 			value.strings, value.numeric = "", 0
 		case '"':
 			value.kind = String
-			value.unprocessed, value.strings = unescapeJsonEncoded(json[i:])
+			value.unprocessed, value.strings = unescapeJSONEncoded(json[i:])
 			value.numeric = 0
 		}
 		value.index = i + t.index
@@ -504,7 +504,7 @@ func Parse(json string) Context {
 			value.unprocessed = lowerPrefix(json[i:])
 		case '"':
 			value.kind = String
-			value.unprocessed, value.strings = unescapeJsonEncoded(json[i:])
+			value.unprocessed, value.strings = unescapeJSONEncoded(json[i:])
 		default:
 			return Context{}
 		}

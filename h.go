@@ -1798,7 +1798,7 @@ func stripNonWhitespace(s string) string {
 	return s
 }
 
-// unescapeJsonEncoded extracts a JSON-encoded string and returns both the full JSON string (with quotes) and the unescaped string content.
+// unescapeJSONEncoded extracts a JSON-encoded string and returns both the full JSON string (with quotes) and the unescaped string content.
 // The function processes the input string to handle escaped characters and returns a clean, unescaped version of the string
 // as well as the portion of the JSON string that includes the enclosing quotes.
 //
@@ -1813,12 +1813,12 @@ func stripNonWhitespace(s string) string {
 // Example Usage:
 //
 //	input := "\"Hello\\nWorld\""
-//	raw, str := unescapeJsonEncoded(input)
+//	raw, str := unescapeJSONEncoded(input)
 //	// raw: "\"Hello\\nWorld\"" (the full JSON string with quotes)
 //	// str: "Hello\nWorld" (the unescaped string content)
 //
 //	input := "\"This is a \\\"quoted\\\" word\""
-//	raw, str := unescapeJsonEncoded(input)
+//	raw, str := unescapeJSONEncoded(input)
 //	// raw: "\"This is a \\\"quoted\\\" word\""
 //	// str: "This is a \"quoted\" word" (the unescaped string content)
 //
@@ -1836,7 +1836,7 @@ func stripNonWhitespace(s string) string {
 //   - If the string is well-formed, the function returns the entire JSON string with quotes (`raw`) and the unescaped string (`str`).
 //
 //   - If an unescaped string is not found or the JSON string doesn't match expected formats, the function returns the string as is.
-func unescapeJsonEncoded(json string) (raw string, unescaped string) {
+func unescapeJSONEncoded(json string) (raw string, unescaped string) {
 	for i := 1; i < len(json); i++ {
 		if json[i] > '\\' {
 			continue
@@ -1879,7 +1879,7 @@ func unescapeJsonEncoded(json string) (raw string, unescaped string) {
 	return json, json[1:]
 }
 
-// isModifierOrJsonStart checks whether the first character of the input string `s` is a special character
+// isModifierOrJSONStart checks whether the first character of the input string `s` is a special character
 // (such as '@', '[', or '{') that might indicate a modifier or a JSON structure in the context of processing.
 //
 // The function performs the following checks:
@@ -1897,19 +1897,19 @@ func unescapeJsonEncoded(json string) (raw string, unescaped string) {
 // Example Usage:
 //
 //	s1 := "@modifier|value"
-//	isModifierOrJsonStart(s1)
+//	isModifierOrJSONStart(s1)
 //	// Returns: true (because it starts with '@' and is followed by a modifier)
 //
 //	s2 := "[1, 2, 3]"
-//	isModifierOrJsonStart(s2)
+//	isModifierOrJSONStart(s2)
 //	// Returns: true (because it starts with '[')
 //
 //	s3 := "{ \"key\": \"value\" }"
-//	isModifierOrJsonStart(s3)
+//	isModifierOrJSONStart(s3)
 //	// Returns: true (because it starts with '{')
 //
 //	s4 := "normalString"
-//	isModifierOrJsonStart(s4)
+//	isModifierOrJSONStart(s4)
 //	// Returns: false (no '@', '[', or '{')
 //
 // Details:
@@ -1917,7 +1917,7 @@ func unescapeJsonEncoded(json string) (raw string, unescaped string) {
 //   - If the string starts with '@', it scans for a potential modifier by checking if there is a '.' or '|' after it,
 //     and verifies whether the modifier exists in the `modifiers` map.
 //   - If the string starts with '[' or '{', it immediately returns `true`, as those characters typically indicate the start of a JSON array or object.
-func isModifierOrJsonStart(s string) bool {
+func isModifierOrJSONStart(s string) bool {
 	if DisableModifiers {
 		return false
 	}
@@ -2245,7 +2245,7 @@ func parsePathWithModifiers(path string) (r wildcard) {
 		}
 		if path[i] == '.' {
 			r.Part = path[:i]
-			if i < len(path)-1 && isModifierOrJsonStart(path[i+1:]) {
+			if i < len(path)-1 && isModifierOrJSONStart(path[i+1:]) {
 				r.Pipe = path[i+1:]
 				r.Piped = true
 			} else {
@@ -2275,7 +2275,7 @@ func parsePathWithModifiers(path string) (r wildcard) {
 						continue
 					} else if path[i] == '.' {
 						r.Part = string(escapePart)
-						if i < len(path)-1 && isModifierOrJsonStart(path[i+1:]) {
+						if i < len(path)-1 && isModifierOrJSONStart(path[i+1:]) {
 							r.Pipe = path[i+1:]
 							r.Piped = true
 						} else {
@@ -2949,7 +2949,7 @@ func analyzePath(path string) (r metadata) {
 		}
 		if path[i] == '.' {
 			r.Part = path[:i]
-			if !r.Arch && i < len(path)-1 && isModifierOrJsonStart(path[i+1:]) {
+			if !r.Arch && i < len(path)-1 && isModifierOrJSONStart(path[i+1:]) {
 				r.Pipe = path[i+1:]
 				r.Piped = true
 			} else {
