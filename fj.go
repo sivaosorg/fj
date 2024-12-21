@@ -564,66 +564,6 @@ func (t Context) Value() interface{} {
 	}
 }
 
-func parseArrayPath(path string) (r deeper) {
-	for i := 0; i < len(path); i++ {
-		if path[i] == '|' {
-			r.Part = path[:i]
-			r.Pipe = path[i+1:]
-			r.Piped = true
-			return
-		}
-		if path[i] == '.' {
-			r.Part = path[:i]
-			if !r.Arch && i < len(path)-1 && isModifierOrJsonStart(path[i+1:]) {
-				r.Pipe = path[i+1:]
-				r.Piped = true
-			} else {
-				r.Path = path[i+1:]
-				r.More = true
-			}
-			return
-		}
-		if path[i] == '#' {
-			r.Arch = true
-			if i == 0 && len(path) > 1 {
-				if path[1] == '.' {
-					r.ALogOk = true
-					r.ALogKey = path[2:]
-					r.Path = path[:1]
-				} else if path[1] == '[' || path[1] == '(' {
-					// query
-					r.query.On = true
-					queryPath, op, value, _, fi, escVal, ok :=
-						analyzeQuery(path[i:])
-					if !ok {
-						// bad query, end now
-						break
-					}
-					if len(value) >= 2 && value[0] == '"' &&
-						value[len(value)-1] == '"' {
-						value = value[1 : len(value)-1]
-						if escVal {
-							value = unescape(value)
-						}
-					}
-					r.query.QueryPath = queryPath
-					r.query.Option = op
-					r.query.Value = value
-
-					i = fi - 1
-					if i+1 < len(path) && path[i+1] == '#' {
-						r.query.All = true
-					}
-				}
-			}
-			continue
-		}
-	}
-	r.Part = path
-	r.Path = ""
-	return
-}
-
 func ofFalse(t Context) bool {
 	switch t.kind {
 	case Null:

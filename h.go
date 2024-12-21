@@ -2581,3 +2581,138 @@ func analyzeQuery(query string) (
 	}
 	return path, op, value, remain, i + 1, _vEsc, true
 }
+
+// parseArrayPath parses a string path into its structural components, breaking it into meaningful parts
+// such as the main path, pipe (if present), query parameters, and nested paths. This function is particularly
+// useful for processing JSON-like paths or other hierarchical data representations.
+//
+// Parameters:
+//   - path (string): The input string path to be analyzed. It may contain various symbols such as '|', '.',
+//     or '#' that represent different parts or behaviors.
+//
+// Returns:
+//   - r (deeper): A struct containing the parsed components of the path, such as `Part`, `Pipe`, `Path`,
+//     and additional metadata (e.g., `Piped`, `More`, `Arch`, and query-related fields).
+//
+// Fields in `deeper`:
+//   - `Part`: The main part of the path before special characters like '.', '|', or '#'.
+//   - `Path`: The remaining part of the path after '.' or other separators.
+//   - `Pipe`: A piped portion of the path, if separated by '|', indicating a subsequent operation.
+//   - `Piped`: A boolean indicating whether the path contains a pipe ('|').
+//   - `More`: A boolean indicating whether there is more of the path to process after the first separator.
+//   - `Arch`: A boolean indicating the presence of a '#' in the path, signifying an archive or query operation.
+//   - `ALogOk`: A boolean indicating a valid archive log if the path starts with `#.`.
+//   - `ALogKey`: The key following `#.` for archive logging, if applicable.
+//   - `query`: A nested struct providing details about a query if the path contains query operations:
+//   - `On`: Indicates whether the path contains a query (e.g., starting with `#(`).
+//   - `All`: Indicates whether the query applies to all elements.
+//   - `QueryPath`: The path portion of the query.
+//   - `Option`: The operator used in the query (e.g., `==`, `!=`, etc.).
+//   - `Value`: The value used in the query.
+//   - `Option`: The operator for comparison.
+//   - `Value`: The query value.
+//
+// Details:
+//   - The function iterates through the `path` string character by character, identifying and processing special symbols
+//     such as '|', '.', and '#'.
+//   - If the path contains a '|', the portion before it is stored in `Part`, and the portion after it is stored in `Pipe`.
+//     The `Piped` flag is set to `true`.
+//   - If the path contains a '.', the portion before it is stored in `Part`, and the remaining part in `Path`.
+//     If the path after the '.' starts with a modifier or JSON, it is stored in `Pipe` instead, with `Piped` set to `true`.
+//   - If the path contains a '#', the `Arch` flag is set to `true`. It may also indicate an archive log (`#.key`) or a query (`#(...)`).
+//     Queries are parsed using the `analyzeQuery` function, and relevant fields in the `query` struct are populated.
+//   - For archive logs starting with `#.` (e.g., `#.key`), the `ALogOk` flag is set, and `ALogKey` contains the key.
+//   - If the path contains a query, the function extracts and processes the query's path, operator, and value.
+//     Queries are denoted by a '#' followed by '[' or '(' (e.g., `#[...]` or `#(...)`).
+//
+// Example Usage:
+//
+//	For Input: "data|filter.name"
+//	   Part: "data"
+//	   Pipe: "filter.name"
+//	   Piped: true
+//	   Path: ""
+//	   More: false
+//	   Arch: false
+//
+//	For Input: "items.#(value=='42').details"
+//	   Part: "items"
+//	   Path: "#(value=='42').details"
+//	   Arch: true
+//	   query.On: true
+//	   query.QueryPath: "value"
+//	   query.Option: "=="
+//	   query.Value: "42"
+//	   query.All: false
+//
+//	For Input: "#.log"
+//	   Part: "#"
+//	   Path: ""
+//	   ALogOk: true
+//	   ALogKey: "log"
+//
+// Notes:
+//   - The function is robust against malformed paths but assumes valid inputs for proper operation.
+//   - It ensures nested paths and queries are correctly identified and processed.
+//
+// Edge Cases:
+//   - If no special characters are found, the entire input is stored in `Part`.
+//   - If the path contains an incomplete or invalid query, the function skips the query parsing gracefully.
+func parseArrayPath(path string) (r deeper) {
+	for i := 0; i < len(path); i++ {
+		if path[i] == '|' {
+			r.Part = path[:i]
+			r.Pipe = path[i+1:]
+			r.Piped = true
+			return
+		}
+		if path[i] == '.' {
+			r.Part = path[:i]
+			if !r.Arch && i < len(path)-1 && isModifierOrJsonStart(path[i+1:]) {
+				r.Pipe = path[i+1:]
+				r.Piped = true
+			} else {
+				r.Path = path[i+1:]
+				r.More = true
+			}
+			return
+		}
+		if path[i] == '#' {
+			r.Arch = true
+			if i == 0 && len(path) > 1 {
+				if path[1] == '.' {
+					r.ALogOk = true
+					r.ALogKey = path[2:]
+					r.Path = path[:1]
+				} else if path[1] == '[' || path[1] == '(' {
+					// query
+					r.query.On = true
+					queryPath, op, value, _, fi, escVal, ok :=
+						analyzeQuery(path[i:])
+					if !ok {
+						break
+					}
+					if len(value) >= 2 && value[0] == '"' &&
+						value[len(value)-1] == '"' {
+						value = value[1 : len(value)-1]
+						if escVal {
+							value = unescape(value)
+						}
+					}
+					r.query.QueryPath = queryPath
+					r.query.Option = op
+					r.query.Value = value
+
+					i = fi - 1
+					if i+1 < len(path) && path[i+1] == '#' {
+						r.query.All = true
+					}
+				}
+			}
+			continue
+		}
+	}
+	r.Part = path
+	r.Path = ""
+	return
+}
