@@ -755,3 +755,59 @@ func TestVerifyNumeric(t *testing.T) {
 		}
 	}
 }
+
+func TestLastSegment(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"foo|bar.baz.qux", "qux"},   // standard case with multiple segments
+		{"foo.bar.baz", "baz"},       // case with dots only
+		{"foo|bar|baz", "baz"},       // case with pipes only
+		{"foo|bar\\|baz.qux", "qux"}, // case with escaped pipe
+		{"foo\\|bar.baz.qux", "qux"}, // case with escaped pipe at the beginning
+		{"foo|bar\\|baz.qux", "qux"}, // case with escaped pipe within the path
+		{"foo\\|bar.baz", "baz"},     // case with escaped pipe in the last segment
+		{"foo", "foo"},               // case with a single segment (no separators)
+		{"", ""},                     // edge case with an empty string
+		{"foo\\|bar", "foo\\|bar"},   // case with escaped pipe at the end
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			result := lastSegment(tt.input)
+			if result != tt.expected {
+				t.Errorf("lastSegment(%q) = %q; want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestIsValidName(t *testing.T) {
+	tests := []struct {
+		component string
+		expected  bool
+	}{
+		{"validName", true},               // valid name without special characters
+		{"valid_name", true},              // valid name with underscore (assuming this is allowed)
+		{"invalid|name", false},           // invalid name with special character '|'
+		{"name#123", false},               // invalid name with special character '#'
+		{"foo(bar)", false},               // invalid name with parentheses
+		{"name[123]", false},              // invalid name with square brackets
+		{"emptyName", true},               // valid name
+		{"name!", false},                  // invalid name with exclamation mark
+		{"", false},                       // empty string is invalid
+		{"name with space", false},        // invalid name with space
+		{"name\\with\\backslashes", true}, // valid name with escaped backslashes (if allowed)
+		{"\x07bell", false},               // invalid name with control character (bell)
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.component, func(t *testing.T) {
+			result := isValidName(tt.component)
+			if result != tt.expected {
+				t.Errorf("isValidName(%q) = %v; want %v", tt.component, result, tt.expected)
+			}
+		})
+	}
+}

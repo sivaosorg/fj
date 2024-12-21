@@ -142,7 +142,7 @@ func (t Context) Int() int64 {
 		return n
 	case Number:
 		// try to directly convert the float64 to int64
-		i, ok := safeInt(t.numeric)
+		i, ok := ensureSafeInt(t.numeric)
 		if ok {
 			return i
 		}
@@ -168,7 +168,7 @@ func (t Context) Uint() uint64 {
 		return n
 	case Number:
 		// try to directly convert the float64 to uint64
-		i, ok := safeInt(t.numeric)
+		i, ok := ensureSafeInt(t.numeric)
 		if ok && i >= 0 {
 			return uint64(i)
 		}
@@ -832,20 +832,6 @@ func parseQuery(query string) (
 		remain = query[i+1:]
 	}
 	return path, op, value, remain, i + 1, _vEsc, true
-}
-
-func trim(s string) string {
-left:
-	if len(s) > 0 && s[0] <= ' ' {
-		s = s[1:]
-		goto left
-	}
-right:
-	if len(s) > 0 && s[len(s)-1] <= ' ' {
-		s = s[:len(s)-1]
-		goto right
-	}
-	return s
 }
 
 // peek at the next byte and see if it's a '@', '[', or '{'.
@@ -1703,11 +1689,6 @@ func ForEachLine(json string, iterator func(line Context) bool) {
 	}
 }
 
-type subSelector struct {
-	name string
-	path string
-}
-
 // parseSubSelectors returns the selectors belonging to a '[path1,path2]' or
 // '{"field1":path1,"field2":path2}' type subSelection. It's expected that the
 // first character in path is either '[' or '{', and has already been checked
@@ -1770,41 +1751,6 @@ func parseSubSelectors(path string) (selectors []subSelector, out string, ok boo
 		}
 	}
 	return
-}
-
-// nameOfLast returns the name of the last component
-func nameOfLast(path string) string {
-	for i := len(path) - 1; i >= 0; i-- {
-		if path[i] == '|' || path[i] == '.' {
-			if i > 0 {
-				if path[i-1] == '\\' {
-					continue
-				}
-			}
-			return path[i+1:]
-		}
-	}
-	return path
-}
-
-func isSimpleName(component string) bool {
-	for i := 0; i < len(component); i++ {
-		if component[i] < ' ' {
-			return false
-		}
-		switch component[i] {
-		case '[', ']', '{', '}', '(', ')', '#', '|', '!':
-			return false
-		}
-	}
-	return true
-}
-
-func appendHex16(dst []byte, x uint16) []byte {
-	return append(dst,
-		hexDigits[x>>12&0xF], hexDigits[x>>8&0xF],
-		hexDigits[x>>4&0xF], hexDigits[x>>0&0xF],
-	)
 }
 
 // AppendJsonString is a convenience function that converts the provided string
@@ -1898,7 +1844,7 @@ func Get(json, path string) Context {
 			if path[0] == '@' && !DisableModifiers {
 				cPath, cJson, ok = execModifier(json, path)
 			} else if path[0] == '!' {
-				cPath, cJson, ok = execStatic(json, path)
+				cPath, cJson, ok = parseStaticValue(path)
 			}
 			if ok {
 				path = cPath
@@ -1936,8 +1882,8 @@ func Get(json, path string) Context {
 										b = AppendJsonString(b, sub.name)
 									}
 								} else {
-									last := nameOfLast(sub.path)
-									if isSimpleName(last) {
+									last := lastSegment(sub.path)
+									if isValidName(last) {
 										b = AppendJsonString(b, last)
 									} else {
 										b = AppendJsonString(b, "_")
@@ -2179,7 +2125,7 @@ func validatePayload(data []byte, i int) (val int, ok bool) {
 	for ; i < len(data); i++ {
 		switch data[i] {
 		default:
-			i, ok = validateAny(data, i)
+			i, ok = verifyAny(data, i)
 			if !ok {
 				return i, false
 			}
@@ -2194,31 +2140,6 @@ func validatePayload(data []byte, i int) (val int, ok bool) {
 			return i, true
 		case ' ', '\t', '\n', '\r':
 			continue
-		}
-	}
-	return i, false
-}
-func validateAny(data []byte, i int) (val int, ok bool) {
-	for ; i < len(data); i++ {
-		switch data[i] {
-		default:
-			return i, false
-		case ' ', '\t', '\n', '\r':
-			continue
-		case '{':
-			return verifyObject(data, i+1)
-		case '[':
-			return verifyArray(data, i+1)
-		case '"':
-			return verifyString(data, i+1)
-		case '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-			return verifyNumeric(data, i+1)
-		case 't':
-			return verifyBoolTrue(data, i+1)
-		case 'f':
-			return verifyBoolFalse(data, i+1)
-		case 'n':
-			return verifyNullable(data, i+1)
 		}
 	}
 	return i, false
@@ -2246,87 +2167,6 @@ func Valid(json string) bool {
 func ValidBytes(json []byte) bool {
 	_, ok := validatePayload(json, 0)
 	return ok
-}
-
-func parseUint(s string) (n uint64, ok bool) {
-	var i int
-	if i == len(s) {
-		return 0, false
-	}
-	for ; i < len(s); i++ {
-		if s[i] >= '0' && s[i] <= '9' {
-			n = n*10 + uint64(s[i]-'0')
-		} else {
-			return 0, false
-		}
-	}
-	return n, true
-}
-
-func parseInt(s string) (n int64, ok bool) {
-	var i int
-	var sign bool
-	if len(s) > 0 && s[0] == '-' {
-		sign = true
-		i++
-	}
-	if i == len(s) {
-		return 0, false
-	}
-	for ; i < len(s); i++ {
-		if s[i] >= '0' && s[i] <= '9' {
-			n = n*10 + int64(s[i]-'0')
-		} else {
-			return 0, false
-		}
-	}
-	if sign {
-		return n * -1, true
-	}
-	return n, true
-}
-
-// safeInt validates a given JSON number
-// ensures it lies within the minimum and maximum representable JSON numbers
-func safeInt(f float64) (n int64, ok bool) {
-	// https://tc39.es/ecma262/#sec-number.min_safe_integer
-	// https://tc39.es/ecma262/#sec-number.max_safe_integer
-	if f < -9007199254740991 || f > 9007199254740991 {
-		return 0, false
-	}
-	return int64(f), true
-}
-
-// execStatic parses the path to find a static value.
-// The input expects that the path already starts with a '!'
-func execStatic(json, path string) (pathOut, result string, ok bool) {
-	name := path[1:]
-	if len(name) > 0 {
-		switch name[0] {
-		case '{', '[', '"', '+', '-', '0', '1', '2', '3', '4', '5', '6', '7',
-			'8', '9':
-			_, result = parseSquash(name, 0)
-			pathOut = name[len(result):]
-			return pathOut, result, true
-		}
-	}
-	for i := 1; i < len(path); i++ {
-		if path[i] == '|' {
-			pathOut = path[i:]
-			name = path[1:i]
-			break
-		}
-		if path[i] == '.' {
-			pathOut = path[i:]
-			name = path[1:i]
-			break
-		}
-	}
-	switch strings.ToLower(name) {
-	case "true", "false", "null", "nan", "inf":
-		return pathOut, name, true
-	}
-	return pathOut, result, false
 }
 
 // execModifier parses the path to find a matching modifier function.
@@ -2388,15 +2228,6 @@ func execModifier(json, path string) (pathOut, res string, ok bool) {
 	return pathOut, res, false
 }
 
-// unwrap removes the '[]' or '{}' characters around json
-func unwrap(json string) string {
-	json = trim(json)
-	if len(json) >= 2 && (json[0] == '[' || json[0] == '{') {
-		json = json[1 : len(json)-1]
-	}
-	return json
-}
-
 func init() {
 	modifiers = map[string]func(json, arg string) string{
 		"pretty":  modPretty,
@@ -2428,26 +2259,6 @@ func ModifierExists(name string, fn func(json, arg string) string) bool {
 	return ok
 }
 
-// cleanWS remove any non-whitespace from string
-func cleanWS(s string) string {
-	for i := 0; i < len(s); i++ {
-		switch s[i] {
-		case ' ', '\t', '\n', '\r':
-			continue
-		default:
-			var s2 []byte
-			for i := 0; i < len(s); i++ {
-				switch s[i] {
-				case ' ', '\t', '\n', '\r':
-					s2 = append(s2, s[i])
-				}
-			}
-			return string(s2)
-		}
-	}
-	return s
-}
-
 // @pretty modifier makes the json look nice.
 func modPretty(json, arg string) string {
 	if len(arg) > 0 {
@@ -2457,9 +2268,9 @@ func modPretty(json, arg string) string {
 			case "sortKeys":
 				opts.SortKeys = value.Bool()
 			case "indent":
-				opts.Indent = cleanWS(value.String())
+				opts.Indent = stripNonWhitespace(value.String())
 			case "prefix":
-				opts.Prefix = cleanWS(value.String())
+				opts.Prefix = stripNonWhitespace(value.String())
 			case "width":
 				opts.Width = int(value.Int())
 			}
@@ -2552,9 +2363,9 @@ func modFlatten(json, arg string) string {
 		var raw string
 		if value.IsArray() {
 			if deep {
-				raw = unwrap(modFlatten(value.unprocessed, arg))
+				raw = removeOuterBraces(modFlatten(value.unprocessed, arg))
 			} else {
-				raw = unwrap(value.unprocessed)
+				raw = removeOuterBraces(value.unprocessed)
 			}
 		} else {
 			raw = value.unprocessed
@@ -2666,7 +2477,7 @@ func modJoin(json, arg string) string {
 			if idx > 0 {
 				out = append(out, ',')
 			}
-			out = append(out, unwrap(value.unprocessed)...)
+			out = append(out, removeOuterBraces(value.unprocessed)...)
 			idx++
 			return true
 		})

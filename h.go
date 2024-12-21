@@ -2,9 +2,12 @@ package fj
 
 import (
 	"strconv"
+	"strings"
 	"unicode/utf16"
 	"unicode/utf8"
 	"unsafe"
+
+	"github.com/sivaosorg/unify4g"
 )
 
 // getNumeric extracts the numeric portion of a JSON-encoded string and converts it to a float.
@@ -1082,7 +1085,7 @@ func verifyArray(data []byte, i int) (val int, ok bool) {
 		switch data[i] {
 		default:
 			for ; i < len(data); i++ {
-				if i, ok = validateAny(data, i); !ok {
+				if i, ok = verifyAny(data, i); !ok {
 					return i, false
 				}
 				if i, ok = verifyComma(data, i, ']'); !ok {
@@ -1149,7 +1152,7 @@ func verifyObject(data []byte, i int) (val int, ok bool) {
 			if i, ok = verifyColon(data, i); !ok {
 				return i, false
 			}
-			if i, ok = validateAny(data, i); !ok {
+			if i, ok = verifyAny(data, i); !ok {
 				return i, false
 			}
 			if i, ok = verifyComma(data, i, '}'); !ok {
@@ -1173,4 +1176,560 @@ func verifyObject(data []byte, i int) (val int, ok bool) {
 		}
 	}
 	return i, false
+}
+
+// verifyAny attempts to validate the data starting at index i as one of the possible JSON value types.
+// It recognizes and validates the following JSON types:
+//   - Object: represented by curly braces `{}`
+//   - Array: represented by square brackets `[]`
+//   - String: represented by double quotes `""`
+//   - Numeric values: including integers and floating-point numbers
+//   - Boolean values: `true` or `false`
+//   - Null: represented by `null`
+//
+// Parameters:
+//   - data: A byte slice containing the JSON input to validate.
+//   - i: The starting index in the byte slice where the validation should begin.
+//
+// Returns:
+//   - val: The index immediately after the valid value if found, or the current index if it isn't.
+//   - ok: A boolean indicating whether the input starting at index i is a valid JSON value of one of the recognized types.
+//
+// Notes:
+//   - The function handles a variety of JSON data types, attempting to validate the input by matching
+//     the character at the current index and calling the appropriate validation function for the recognized type.
+//   - It will skip any whitespace characters (spaces, tabs, newlines, carriage returns) before checking the data.
+//   - The function calls other helper functions to validate specific types of JSON values, such as `verifyObject`, `verifyArray`,
+//     `verifyString`, `verifyNumeric`, `verifyBoolTrue`, `verifyBoolFalse`, and `verifyNullable`.
+//
+// Example Usage:
+//
+//	data := []byte(`{"key1": 123, "key2": "value"}`)
+//	i := 0
+//	val, ok := verifyAny(data, i)
+//	// val: 28 (the index after the object)
+//	// ok: true (because the input is a valid JSON object)
+//
+// Details:
+//   - If the input data at index i is a valid JSON value (object, array, string, numeric, boolean, or null),
+//     the function will return the index immediately after the valid value and true.
+//   - If the data does not match a valid JSON value, it returns the current index and false.
+func verifyAny(data []byte, i int) (val int, ok bool) {
+	for ; i < len(data); i++ {
+		switch data[i] {
+		default:
+			return i, false
+		case ' ', '\t', '\n', '\r':
+			continue
+		case '{':
+			return verifyObject(data, i+1)
+		case '[':
+			return verifyArray(data, i+1)
+		case '"':
+			return verifyString(data, i+1)
+		case '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+			return verifyNumeric(data, i+1)
+		case 't':
+			return verifyBoolTrue(data, i+1)
+		case 'f':
+			return verifyBoolFalse(data, i+1)
+		case 'n':
+			return verifyNullable(data, i+1)
+		}
+	}
+	return i, false
+}
+
+// lastSegment extracts the last part of a given path string, where the path segments are separated by
+// either a pipe ('|') or a dot ('.'). The function returns the substring after the last separator,
+// taking escape sequences (backslashes) into account. It ensures that any escaped separator is ignored.
+//
+// Parameters:
+//   - path: A string representing the full path, which may contain segments separated by '|' or '.'.
+//
+// Returns:
+//   - A string representing the last segment in the path after the last occurrence of either '|' or '.'.
+//     If no separator is found, it returns the entire input string.
+//
+// Notes:
+//   - The function handles escape sequences where separators are preceded by a backslash ('\').
+//   - If there is no valid separator in the string, the entire path is returned as-is.
+//   - The returned substring is the part after the last separator, which could be the last portion of the path.
+//
+// Example Usage:
+//
+//	path := "foo|bar.baz.qux"
+//	segment := lastSegment(path)
+//	// segment: "qux" (the last segment after the last dot or pipe)
+//
+// Details:
+//   - The function iterates from the end of the string towards the beginning, looking for the last
+//     occurrence of '|' or '.' that is not preceded by a backslash.
+//   - It handles edge cases where the separator is escaped or there are no separators at all.
+func lastSegment(path string) string {
+	for i := len(path) - 1; i >= 0; i-- {
+		if path[i] == '|' || path[i] == '.' {
+			if i > 0 {
+				if path[i-1] == '\\' {
+					continue
+				}
+			}
+			return path[i+1:]
+		}
+	}
+	return path
+}
+
+// isValidName checks if a given string component is a "simple name" according to specific rules.
+// A "simple name" is a string that does not contain any control characters or any of the following special characters:
+// '[' , ']' , '{' , '}' , '(' , ')' , '#' , '|' , '!'. The function returns true if the string meets these criteria.
+//
+// Parameters:
+//   - component: A string to be checked for validity as a simple name.
+//
+// Returns:
+//   - A boolean indicating whether the input string is a valid simple name.
+//   - Returns true if the string contains only printable characters and does not include any of the restricted special characters.
+//   - Returns false if the string contains any control characters or restricted special characters.
+//
+// Notes:
+//   - The function checks each character of the string to ensure it is printable and does not contain any of the restricted characters.
+//   - Control characters are defined as any character with a Unicode value less than a space (' ').
+//   - The function assumes that the string is not empty and contains at least one character.
+//
+// Example Usage:
+//
+//	component := "validName"
+//	isValid := isValidName(component)
+//	// isValid: true (the string contains only valid characters)
+//
+//	component = "invalid|name"
+//	isValid = isValidName(component)
+//	// isValid: false (the string contains an invalid character '|')
+//
+// Details:
+//   - The function iterates through each character of the string and checks whether it is a printable character and whether it
+//     is not one of the restricted special characters. If any invalid character is found, the function returns false immediately.
+func isValidName(component string) bool {
+	if unify4g.IsEmpty(component) {
+		return false
+	}
+	if unify4g.ContainsAny(component, " ") {
+		return false
+	}
+	for i := 0; i < len(component); i++ {
+		if component[i] < ' ' {
+			return false
+		}
+		switch component[i] {
+		case '[', ']', '{', '}', '(', ')', '#', '|', '!':
+			return false
+		}
+	}
+	return true
+}
+
+// appendHex16 appends the hexadecimal representation of a 16-bit unsigned integer (uint16)
+// to a byte slice. The integer is converted to a 4-character hexadecimal string, and each character
+// is appended to the input byte slice in sequence. The function uses a pre-defined set of hexadecimal
+// digits ('0'–'9' and 'a'–'f') for the conversion.
+//
+// Parameters:
+//   - bytes: A byte slice to which the hexadecimal characters will be appended.
+//   - x: A 16-bit unsigned integer to be converted to hexadecimal and appended to the byte slice.
+//
+// Returns:
+//   - A new byte slice containing the original bytes with the appended hexadecimal digits
+//     representing the 16-bit integer.
+//
+// Example Usage:
+//
+//	var result []byte
+//	x := uint16(3055) // Decimal 3055 is 0x0BEF in hexadecimal
+//	result = appendHex16(result, x)
+//	// result: []byte{'0', 'b', 'e', 'f'} (hexadecimal representation of 3055)
+//
+// Details:
+//   - The function shifts and masks the 16-bit integer to extract each of the four hexadecimal digits.
+//   - It uses the pre-defined `hexDigits` array to convert the integer's nibbles (4 bits) into their
+//     corresponding hexadecimal characters.
+func appendHex16(bytes []byte, x uint16) []byte {
+	return append(bytes,
+		hexDigits[x>>12&0xF], hexDigits[x>>8&0xF],
+		hexDigits[x>>4&0xF], hexDigits[x>>0&0xF],
+	)
+}
+
+// parseUint parses a string as an unsigned integer (uint64).
+// It attempts to convert the given string to a numeric value, where each character in the string
+// must be a digit between '0' and '9'. If any non-digit character is encountered, the function
+// returns false, indicating the string does not represent a valid unsigned integer.
+//
+// Parameters:
+//   - s: A string representing the unsigned integer to be parsed.
+//
+// Returns:
+//   - n: The parsed unsigned integer value (of type uint64) if the string represents a valid number.
+//   - ok: A boolean indicating whether the parsing was successful. If true, the string was successfully
+//     parsed into an unsigned integer; if false, the string was invalid.
+//
+// Example Usage:
+//
+//	str := "12345"
+//	n, ok := parseUint(str)
+//	// n: 12345 (the parsed unsigned integer)
+//	// ok: true (the string is a valid unsigned integer)
+//
+//	str = "12a45"
+//	n, ok = parseUint(str)
+//	// n: 0 (parsing failed)
+//	// ok: false (the string contains invalid characters)
+//
+// Details:
+//   - The function iterates through each character of the string. If it encounters a digit ('0'–'9'),
+//     it accumulates the corresponding integer value into the result `n`. The result is multiplied by 10
+//     with each new digit to shift the previous digits left.
+//   - If any non-digit character is encountered, the function returns `0` and `false`.
+//   - The function assumes that the input string is non-empty and only contains valid ASCII digits if valid.
+func parseUint(s string) (n uint64, ok bool) {
+	var i int
+	if i == len(s) {
+		return 0, false
+	}
+	for ; i < len(s); i++ {
+		if s[i] >= '0' && s[i] <= '9' {
+			n = n*10 + uint64(s[i]-'0')
+		} else {
+			return 0, false
+		}
+	}
+	return n, true
+}
+
+// parseInt parses a string as a signed integer (int64).
+// It attempts to convert the given string to a numeric value, where each character in the string
+// must be a digit between '0' and '9'. The function also supports negative numbers, indicated by a leading
+// minus sign ('-'). If any non-digit character is encountered (except for the minus sign at the start),
+// the function returns false, indicating the string does not represent a valid signed integer.
+//
+// Parameters:
+//   - s: A string representing the signed integer to be parsed.
+//
+// Returns:
+//   - n: The parsed signed integer value (of type int64) if the string represents a valid number.
+//   - ok: A boolean indicating whether the parsing was successful. If true, the string was successfully
+//     parsed into a signed integer; if false, the string was invalid.
+//
+// Example Usage:
+//
+//	str := "-12345"
+//	n, ok := parseInt(str)
+//	// n: -12345 (the parsed signed integer)
+//	// ok: true (the string is a valid signed integer)
+//
+//	str = "12a45"
+//	n, ok = parseInt(str)
+//	// n: 0 (parsing failed)
+//	// ok: false (the string contains invalid characters)
+//
+// Details:
+//   - The function first checks for an optional leading minus sign ('-'). If found, it sets a `sign`
+//     flag to indicate the number is negative.
+//   - It then iterates through each character of the string. If it encounters a digit ('0'–'9'),
+//     it accumulates the corresponding integer value into the result `n`, shifting the previous digits left.
+//   - If any non-digit character is encountered (excluding the leading minus sign), the function returns `0` and `false`.
+//   - If the `sign` flag is set, the result is negated before returning.
+//   - The function assumes that the input string is non-empty and contains valid digits if valid, with an optional leading minus sign.
+func parseInt(s string) (n int64, ok bool) {
+	var i int
+	var sign bool
+	if len(s) > 0 && s[0] == '-' {
+		sign = true
+		i++
+	}
+	if i == len(s) {
+		return 0, false
+	}
+	for ; i < len(s); i++ {
+		if s[i] >= '0' && s[i] <= '9' {
+			n = n*10 + int64(s[i]-'0')
+		} else {
+			return 0, false
+		}
+	}
+	if sign {
+		return n * -1, true
+	}
+	return n, true
+}
+
+// ensureSafeInt validates a given floating-point number (float64) to ensure it lies within the safe range for integers
+// in JavaScript (the Number type), as defined by the ECMAScript specification. The function checks if the number
+// is within the range of valid safe integers that can be accurately represented in JavaScript without loss of precision.
+// If the number is within the safe integer range, it returns the corresponding signed 64-bit integer value (int64).
+// If the number is outside the safe range, it returns false, indicating that the number cannot be safely represented as an integer.
+//
+// Parameters:
+//   - f: A floating-point number (float64) representing the number to be validated.
+//
+// Returns:
+//   - n: The corresponding signed 64-bit integer (int64) value if the number is within the safe integer range.
+//   - ok: A boolean indicating whether the number lies within the safe integer range. If true, the number is safe to
+//     represent as an integer; if false, the number is outside the safe range.
+//
+// Example Usage:
+//
+//	f := 1234567890.0
+//	n, ok := ensureSafeInt(f)
+//	// n: 1234567890 (the number as a valid int64)
+//	// ok: true (the number is within the safe integer range)
+//
+//	f = 9007199254740992.0
+//	n, ok = ensureSafeInt(f)
+//	// n: 0 (parsing failed)
+//	// ok: false (the number is outside the safe integer range)
+//
+// Details:
+//
+//   - The function checks if the given number `f` falls within the range of -9007199254740991 to 9007199254740991,
+//     which are the minimum and maximum safe integers in JavaScript as specified in the ECMAScript standard.
+//
+//   - If the number is within the safe range, it is converted to an int64 and returned, along with `true` to indicate success.
+//
+//   - If the number is outside this range, it returns `0` and `false`, as such numbers cannot be safely represented as
+//     integers in JavaScript without losing precision.
+//
+//   - https://tc39.es/ecma262/#sec-number.min_safe_integer
+//
+//   - https://tc39.es/ecma262/#sec-number.max_safe_integer
+func ensureSafeInt(f float64) (n int64, ok bool) {
+	if f < -9007199254740991 || f > 9007199254740991 {
+		return 0, false
+	}
+	return int64(f), true
+}
+
+// parseStaticValue parses a string path to find a static value, such as a boolean, null, or number.
+// The function expects that the input path starts with a '!', indicating a static value. It identifies the static
+// value by looking for valid characters and structures that represent literal values in a path. If a valid static value
+// is found, it returns the remaining path, the static value, and a success flag. Otherwise, it returns false.
+//
+// Parameters:
+//   - path: A string representing the path to parse. The path should start with a '!' to indicate a static value.
+//     The function processes the string following the '!' to find the static value.
+//
+// Returns:
+//   - pathOut: The remaining part of the path after the static value has been identified. This is the portion of the
+//     string that follows the literal value, such as any further path segments or operators.
+//   - result: The static value found in the path, which can be a boolean ("true" or "false"), null, NaN, or Inf, or
+//     a numeric value, or an empty string if no valid static value is found.
+//   - ok: A boolean indicating whether the function successfully identified a static value. Returns true if a valid
+//     static value is found, and false otherwise.
+//
+// Example Usage:
+//
+//	path := "!true.some.other.path"
+//	pathOut, result, ok := parseStaticValue(path)
+//	// pathOut: ".some.other.path" (remaining path)
+//	// result: "true" (the static value found)
+//	// ok: true (successful identification of static value)
+//
+//	path = "!123.abc"
+//	pathOut, result, ok = parseStaticValue(path)
+//	// pathOut: ".abc" (remaining path)
+//	// result: "123" (the static value found)
+//	// ok: true (successful identification of static value)
+//
+// Details:
+//
+//   - The function looks for the first character after the '!' to determine if the value starts with a valid static
+//     value, such as a number or a boolean literal ("true", "false"), null, NaN, or Inf.
+//
+//   - It processes the string to extract the static value, then identifies the rest of the path (if any) after the static
+//     value, which is returned as the remaining portion of the path.
+//
+//   - If the function encounters a delimiter like '.' or '|', it stops further parsing of the static value and returns
+//     the remaining path.
+//
+//   - If no static value is identified, the function returns false.
+//
+//     Notes:
+//
+//   - The function assumes that the input path is well-formed and follows the expected format (starting with '!').
+//
+//   - The value can be a boolean, null, NaN, Inf, or a number in the path.
+func parseStaticValue(path string) (pathStatic, result string, ok bool) {
+	name := path[1:]
+	if len(name) > 0 {
+		switch name[0] {
+		case '{', '[', '"', '+', '-', '0', '1', '2', '3', '4', '5', '6', '7',
+			'8', '9':
+			_, result = parseSquash(name, 0)
+			pathStatic = name[len(result):]
+			return pathStatic, result, true
+		}
+	}
+	for i := 1; i < len(path); i++ {
+		if path[i] == '|' {
+			pathStatic = path[i:]
+			name = path[1:i]
+			break
+		}
+		if path[i] == '.' {
+			pathStatic = path[i:]
+			name = path[1:i]
+			break
+		}
+	}
+	switch strings.ToLower(name) {
+	case "true", "false", "null", "nan", "inf":
+		return pathStatic, name, true
+	}
+	return pathStatic, result, false
+}
+
+// trim removes leading and trailing whitespace characters from a string.
+// The function iteratively checks and removes spaces (or any character less than or equal to a space)
+// from both the left (beginning) and right (end) of the string.
+//
+// Parameters:
+//   - s: A string that may contain leading and trailing whitespace characters that need to be removed.
+//
+// Returns:
+//   - A new string with leading and trailing whitespace removed. The function does not modify the original string,
+//     as strings in Go are immutable.
+//
+// Example Usage:
+//
+//	str := "  hello world  "
+//	trimmed := trim(str)
+//	// trimmed: "hello world" (leading and trailing spaces removed)
+//
+//	str = "\n\n   trim me   \t\n"
+//	trimmed = trim(str)
+//	// trimmed: "trim me" (leading and trailing spaces and newline characters removed)
+//
+// Details:
+//
+//   - The function works by iteratively removing any characters less than or equal to a space (ASCII 32) from the
+//     left side of the string until no such characters remain. It then performs the same operation on the right side of
+//     the string until no whitespace characters are left.
+//
+//   - The function uses a `goto` mechanism to handle the removal in a loop, which ensures all leading and trailing
+//     spaces (or any whitespace characters) are removed without additional checks for length or condition evaluation
+//     in every iteration.
+//
+//   - The trimmed result string will not contain leading or trailing whitespace characters after the function completes.
+//
+//   - The function returns an unchanged string if no whitespace is present.
+func trim(s string) string {
+	if unify4g.IsEmpty(s) {
+		return s
+	}
+left:
+	if len(s) > 0 && s[0] <= ' ' {
+		s = s[1:]
+		goto left
+	}
+right:
+	if len(s) > 0 && s[len(s)-1] <= ' ' {
+		s = s[:len(s)-1]
+		goto right
+	}
+	return s
+}
+
+// removeOuterBraces removes the surrounding '[]' or '{}' characters from a JSON string.
+// This function is useful when you want to extract the content inside a JSON array or object,
+// effectively unwrapping the outermost brackets or braces.
+//
+// Parameters:
+//   - json: A string representing a JSON object or array. The string may include square brackets ('[]') or
+//     curly braces ('{}') at the beginning and end, which will be removed if they exist.
+//
+// Returns:
+//   - A new string with the outermost '[]' or '{}' characters removed. If the string does not start
+//     and end with matching brackets or braces, the string remains unchanged.
+//
+// Example Usage:
+//
+//	json := "[1, 2, 3]"
+//	unwrapped := removeOuterBraces(json)
+//	// unwrapped: "1, 2, 3" (the array removed)
+//
+//	json = "{ \"name\": \"John\" }"
+//	unwrapped = removeOuterBraces(json)
+//	// unwrapped: " \"name\": \"John\" " (the object removed)
+//
+//	str := "hello world"
+//	unwrapped = removeOuterBraces(str)
+//	// unwrapped: "hello world" (no change since no surrounding brackets or braces)
+//
+// Details:
+//
+//   - The function first trims any leading or trailing whitespace from the input string using the `trim` function.
+//
+//   - It then checks if the string has at least two characters and if the first character is either '[' or '{'.
+//
+//   - If the first character is an opening bracket or brace, and the last character matches its pair (']' or '}'),
+//     the function removes both the first and last characters.
+//
+//   - If the string does not start and end with matching brackets or braces, the original string is returned unchanged.
+//
+//   - The function handles cases where the string may contain additional whitespace at the beginning or end by trimming it first.
+func removeOuterBraces(json string) string {
+	json = trim(json)
+	if len(json) >= 2 && (json[0] == '[' || json[0] == '{') {
+		json = json[1 : len(json)-1]
+	}
+	return json
+}
+
+// stripNonWhitespace removes all non-whitespace characters from the input string, leaving only whitespace characters.
+// The function iterates over each character in the input string and appends only whitespace characters (' ', '\t', '\n', '\r')
+// to a new string. All non-whitespace characters are ignored and not included in the result.
+//
+// Parameters:
+//   - s: A string that may contain a mixture of whitespace and non-whitespace characters.
+//
+// Returns:
+//   - A new string consisting only of whitespace characters from the original string. If there are no whitespace characters
+//     in the input string, it returns an empty string.
+//
+// Example Usage:
+//
+//	str := "  \t\n   abc  "
+//	result := stripNonWhitespace(str)
+//	// result: "     " (all non-whitespace characters are removed)
+//
+//	str = "hello"
+//	result = stripNonWhitespace(str)
+//	// result: "" (no whitespace characters, returns an empty string)
+//
+// Details:
+//
+//   - The function iterates through each character in the input string `s` and skips any non-whitespace character.
+//
+//   - It appends each whitespace character to a new byte slice `s2`, which is later converted to a string and returned.
+//
+//   - If the input string contains no whitespace characters, the function returns an empty string.
+//
+//   - This function may not be very efficient for long strings, as it performs an inner loop on each non-whitespace character.
+func stripNonWhitespace(s string) string {
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case ' ', '\t', '\n', '\r':
+			continue
+		default:
+			var s2 []byte
+			for i := 0; i < len(s); i++ {
+				switch s[i] {
+				case ' ', '\t', '\n', '\r':
+					s2 = append(s2, s[i])
+				}
+			}
+			return string(s2)
+		}
+	}
+	return s
 }

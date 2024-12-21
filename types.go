@@ -79,3 +79,8 @@ type sliceHeader struct {
 	length   int
 	capacity int
 }
+
+type subSelector struct {
+	name string
+	path string
+}
