@@ -604,8 +604,8 @@ func nullish(t Context) bool {
 	return t.kind == Null
 }
 
-func queryMatches(rp *deeper, value Context) bool {
-	rpv := rp.query.Value
+func queryMatches(dp *deeper, value Context) bool {
+	rpv := dp.query.Value
 	if len(rpv) > 0 {
 		if rpv[0] == '~' {
 			// convert to bool
@@ -637,7 +637,7 @@ func queryMatches(rp *deeper, value Context) bool {
 	if !value.Exists() {
 		return false
 	}
-	if rp.query.Option == "" {
+	if dp.query.Option == "" {
 		// the query is only looking for existence, such as:
 		//   friends.#(name)
 		// which makes sure that the array "friends" has an element of
@@ -646,7 +646,7 @@ func queryMatches(rp *deeper, value Context) bool {
 	}
 	switch value.kind {
 	case String:
-		switch rp.query.Option {
+		switch dp.query.Option {
 		case "=":
 			return value.strings == rpv
 		case "!=":
@@ -666,7 +666,7 @@ func queryMatches(rp *deeper, value Context) bool {
 		}
 	case Number:
 		_rightVal, _ := strconv.ParseFloat(rpv, 64)
-		switch rp.query.Option {
+		switch dp.query.Option {
 		case "=":
 			return value.numeric == _rightVal
 		case "!=":
@@ -681,7 +681,7 @@ func queryMatches(rp *deeper, value Context) bool {
 			return value.numeric >= _rightVal
 		}
 	case True:
-		switch rp.query.Option {
+		switch dp.query.Option {
 		case "=":
 			return rpv == "true"
 		case "!=":
@@ -692,7 +692,7 @@ func queryMatches(rp *deeper, value Context) bool {
 			return true
 		}
 	case False:
-		switch rp.query.Option {
+		switch dp.query.Option {
 		case "=":
 			return rpv == "false"
 		case "!=":
@@ -704,396 +704,6 @@ func queryMatches(rp *deeper, value Context) bool {
 		}
 	}
 	return false
-}
-func parseArray(c *parser, i int, path string) (int, bool) {
-	var _match, escVal, ok, hit bool
-	var val string
-	var h int
-	var aLog []int
-	var partIdx int
-	var multics []byte
-	var queryIndexes []int
-	rp := analyzePath(path)
-	if !rp.Arch {
-		n, ok := parseUint(rp.Part)
-		if !ok {
-			partIdx = -1
-		} else {
-			partIdx = int(n)
-		}
-	}
-	if !rp.More && rp.Piped {
-		c.pipe = rp.Pipe
-		c.piped = true
-	}
-
-	procQuery := func(eVal Context) bool {
-		if rp.query.All {
-			if len(multics) == 0 {
-				multics = append(multics, '[')
-			}
-		}
-		var tmp parser
-		tmp.value = eVal
-		calcSubstringIndex(c.json, &tmp)
-		parentIndex := tmp.value.index
-		var res Context
-		if eVal.kind == JSON {
-			res = eVal.Get(rp.query.QueryPath)
-		} else {
-			if rp.query.QueryPath != "" {
-				return false
-			}
-			res = eVal
-		}
-		if queryMatches(&rp, res) {
-			if rp.More {
-				left, right, ok := splitPossiblePipe(rp.Path)
-				if ok {
-					rp.Path = left
-					c.pipe = right
-					c.piped = true
-				}
-				res = eVal.Get(rp.Path)
-			} else {
-				res = eVal
-			}
-			if rp.query.All {
-				raw := res.unprocessed
-				if len(raw) == 0 {
-					raw = res.String()
-				}
-				if raw != "" {
-					if len(multics) > 1 {
-						multics = append(multics, ',')
-					}
-					multics = append(multics, raw...)
-					queryIndexes = append(queryIndexes, res.index+parentIndex)
-				}
-			} else {
-				c.value = res
-				return true
-			}
-		}
-		return false
-	}
-	for i < len(c.json)+1 {
-		if !rp.Arch {
-			_match = partIdx == h
-			hit = _match && !rp.More
-		}
-		h++
-		if rp.ALogOk {
-			aLog = append(aLog, i)
-		}
-		for ; ; i++ {
-			var ch byte
-			if i > len(c.json) {
-				break
-			} else if i == len(c.json) {
-				ch = ']'
-			} else {
-				ch = c.json[i]
-			}
-			var num bool
-			switch ch {
-			default:
-				continue
-			case '"':
-				i++
-				i, val, escVal, ok = parseString(c.json, i)
-				if !ok {
-					return i, false
-				}
-				if rp.query.On {
-					var cVal Context
-					if escVal {
-						cVal.strings = unescape(val[1 : len(val)-1])
-					} else {
-						cVal.strings = val[1 : len(val)-1]
-					}
-					cVal.unprocessed = val
-					cVal.kind = String
-					if procQuery(cVal) {
-						return i, true
-					}
-				} else if hit {
-					if rp.ALogOk {
-						break
-					}
-					if escVal {
-						c.value.strings = unescape(val[1 : len(val)-1])
-					} else {
-						c.value.strings = val[1 : len(val)-1]
-					}
-					c.value.unprocessed = val
-					c.value.kind = String
-					return i, true
-				}
-			case '{':
-				if _match && !hit {
-					i, hit = parseJsonObject(c, i+1, rp.Path)
-					if hit {
-						if rp.ALogOk {
-							break
-						}
-						return i, true
-					}
-				} else {
-					i, val = parseSquashJson(c.json, i)
-					if rp.query.On {
-						if procQuery(Context{unprocessed: val, kind: JSON}) {
-							return i, true
-						}
-					} else if hit {
-						if rp.ALogOk {
-							break
-						}
-						c.value.unprocessed = val
-						c.value.kind = JSON
-						return i, true
-					}
-				}
-			case '[':
-				if _match && !hit {
-					i, hit = parseArray(c, i+1, rp.Path)
-					if hit {
-						if rp.ALogOk {
-							break
-						}
-						return i, true
-					}
-				} else {
-					i, val = parseSquashJson(c.json, i)
-					if rp.query.On {
-						if procQuery(Context{unprocessed: val, kind: JSON}) {
-							return i, true
-						}
-					} else if hit {
-						if rp.ALogOk {
-							break
-						}
-						c.value.unprocessed = val
-						c.value.kind = JSON
-						return i, true
-					}
-				}
-			case 'n':
-				if i+1 < len(c.json) && c.json[i+1] != 'u' {
-					num = true
-					break
-				}
-				fallthrough
-			case 't', 'f':
-				vc := c.json[i]
-				i, val = parseJsonLiteral(c.json, i)
-				if rp.query.On {
-					var cVal Context
-					cVal.unprocessed = val
-					switch vc {
-					case 't':
-						cVal.kind = True
-					case 'f':
-						cVal.kind = False
-					}
-					if procQuery(cVal) {
-						return i, true
-					}
-				} else if hit {
-					if rp.ALogOk {
-						break
-					}
-					c.value.unprocessed = val
-					switch vc {
-					case 't':
-						c.value.kind = True
-					case 'f':
-						c.value.kind = False
-					}
-					return i, true
-				}
-			case '+', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-				'i', 'I', 'N':
-				num = true
-			case ']':
-				if rp.Arch && rp.Part == "#" {
-					if rp.ALogOk {
-						left, right, ok := splitPossiblePipe(rp.ALogKey)
-						if ok {
-							rp.ALogKey = left
-							c.pipe = right
-							c.piped = true
-						}
-						var indexes = make([]int, 0, 64)
-						var jsonVal = make([]byte, 0, 64)
-						jsonVal = append(jsonVal, '[')
-						for j, k := 0, 0; j < len(aLog); j++ {
-							idx := aLog[j]
-							for idx < len(c.json) {
-								switch c.json[idx] {
-								case ' ', '\t', '\r', '\n':
-									idx++
-									continue
-								}
-								break
-							}
-							if idx < len(c.json) && c.json[idx] != ']' {
-								_, res, ok := parseAny(c.json, idx, true)
-								if ok {
-									res := res.Get(rp.ALogKey)
-									if res.Exists() {
-										if k > 0 {
-											jsonVal = append(jsonVal, ',')
-										}
-										raw := res.unprocessed
-										if len(raw) == 0 {
-											raw = res.String()
-										}
-										jsonVal = append(jsonVal, []byte(raw)...)
-										indexes = append(indexes, res.index)
-										k++
-									}
-								}
-							}
-						}
-						jsonVal = append(jsonVal, ']')
-						c.value.kind = JSON
-						c.value.unprocessed = string(jsonVal)
-						c.value.indexes = indexes
-						return i + 1, true
-					}
-					if rp.ALogOk {
-						break
-					}
-
-					c.value.kind = Number
-					c.value.numeric = float64(h - 1)
-					c.value.unprocessed = strconv.Itoa(h - 1)
-					c.calc = true
-					return i + 1, true
-				}
-				if !c.value.Exists() {
-					if len(multics) > 0 {
-						c.value = Context{
-							unprocessed: string(append(multics, ']')),
-							kind:        JSON,
-							indexes:     queryIndexes,
-						}
-					} else if rp.query.All {
-						c.value = Context{
-							unprocessed: "[]",
-							kind:        JSON,
-						}
-					}
-				}
-				return i + 1, false
-			}
-			if num {
-				i, val = parseNumeric(c.json, i)
-				if rp.query.On {
-					var cVal Context
-					cVal.unprocessed = val
-					cVal.kind = Number
-					cVal.numeric, _ = strconv.ParseFloat(val, 64)
-					if procQuery(cVal) {
-						return i, true
-					}
-				} else if hit {
-					if rp.ALogOk {
-						break
-					}
-					c.value.unprocessed = val
-					c.value.kind = Number
-					c.value.numeric, _ = strconv.ParseFloat(val, 64)
-					return i, true
-				}
-			}
-			break
-		}
-	}
-	return i, false
-}
-
-func splitPossiblePipe(path string) (left, right string, ok bool) {
-	// take a quick peek for the pipe character. If found we'll split the piped
-	// part of the path into the c.pipe field and shorten the rp.
-	var possible bool
-	for i := 0; i < len(path); i++ {
-		if path[i] == '|' {
-			possible = true
-			break
-		}
-	}
-	if !possible {
-		return
-	}
-
-	if len(path) > 0 && path[0] == '{' {
-		squashed := squash(path[1:])
-		if len(squashed) < len(path)-1 {
-			squashed = path[:len(squashed)+1]
-			remain := path[len(squashed):]
-			if remain[0] == '|' {
-				return squashed, remain[1:], true
-			}
-		}
-		return
-	}
-
-	// split the left and right side of the path with the pipe character as
-	// the delimiter. This is a little tricky because we'll need to basically
-	// parse the entire path.
-	for i := 0; i < len(path); i++ {
-		if path[i] == '\\' {
-			i++
-		} else if path[i] == '.' {
-			if i == len(path)-1 {
-				return
-			}
-			if path[i+1] == '#' {
-				i += 2
-				if i == len(path) {
-					return
-				}
-				if path[i] == '[' || path[i] == '(' {
-					var start, end byte
-					if path[i] == '[' {
-						start, end = '[', ']'
-					} else {
-						start, end = '(', ')'
-					}
-					// inside selector, balance brackets
-					i++
-					depth := 1
-					for ; i < len(path); i++ {
-						if path[i] == '\\' {
-							i++
-						} else if path[i] == start {
-							depth++
-						} else if path[i] == end {
-							depth--
-							if depth == 0 {
-								break
-							}
-						} else if path[i] == '"' {
-							// inside selector string, balance quotes
-							i++
-							for ; i < len(path); i++ {
-								if path[i] == '\\' {
-									i++
-								} else if path[i] == '"' {
-									break
-								}
-							}
-						}
-					}
-				}
-			}
-		} else if path[i] == '|' {
-			return path[:i], path[i+1:], true
-		}
-	}
-	return
 }
 
 // ForEachLine iterates through lines of JSON as specified by the JSON Lines
@@ -1111,70 +721,6 @@ func ForEachLine(json string, iterator func(line Context) bool) {
 			return
 		}
 	}
-}
-
-// parseSubSelectors returns the selectors belonging to a '[path1,path2]' or
-// '{"field1":path1,"field2":path2}' type subSelection. It's expected that the
-// first character in path is either '[' or '{', and has already been checked
-// prior to calling this function.
-func parseSubSelectors(path string) (selectors []subSelector, out string, ok bool) {
-	modifier := 0
-	depth := 1
-	colon := 0
-	start := 1
-	i := 1
-	pushSel := func() {
-		var sel subSelector
-		if colon == 0 {
-			sel.path = path[start:i]
-		} else {
-			sel.name = path[start:colon]
-			sel.path = path[colon+1 : i]
-		}
-		selectors = append(selectors, sel)
-		colon = 0
-		modifier = 0
-		start = i + 1
-	}
-	for ; i < len(path); i++ {
-		switch path[i] {
-		case '\\':
-			i++
-		case '@':
-			if modifier == 0 && i > 0 && (path[i-1] == '.' || path[i-1] == '|') {
-				modifier = i
-			}
-		case ':':
-			if modifier == 0 && colon == 0 && depth == 1 {
-				colon = i
-			}
-		case ',':
-			if depth == 1 {
-				pushSel()
-			}
-		case '"':
-			i++
-		loop:
-			for ; i < len(path); i++ {
-				switch path[i] {
-				case '\\':
-					i++
-				case '"':
-					break loop
-				}
-			}
-		case '[', '(', '{':
-			depth++
-		case ']', ')', '}':
-			depth--
-			if depth == 0 {
-				pushSel()
-				path = path[i+1:]
-				return selectors, path, true
-			}
-		}
-	}
-	return
 }
 
 // AppendJsonString is a convenience function that converts the provided string
@@ -1286,7 +832,7 @@ func Get(json, path string) Context {
 			kind := path[0]
 			var ok bool
 			var subs []subSelector
-			subs, path, ok = parseSubSelectors(path)
+			subs, path, ok = analyzeSubSelectors(path)
 			if ok {
 				if len(path) == 0 || (path[0] == '|' || path[0] == '.') {
 					var b []byte
@@ -1345,7 +891,7 @@ func Get(json, path string) Context {
 	var c = &parser{json: json}
 	if len(path) >= 2 && path[0] == '.' && path[1] == '.' {
 		c.lines = true
-		parseArray(c, 0, path[2:])
+		analyzeArray(c, 0, path[2:])
 	} else {
 		for ; i < len(c.json); i++ {
 			if c.json[i] == '{' {
@@ -1355,7 +901,7 @@ func Get(json, path string) Context {
 			}
 			if c.json[i] == '[' {
 				i++
-				parseArray(c, i, path)
+				analyzeArray(c, i, path)
 				break
 			}
 		}

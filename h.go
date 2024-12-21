@@ -2406,7 +2406,7 @@ func parseJsonObject(c *parser, i int, path string) (int, bool) {
 				}
 			case '[':
 				if _match && !hit {
-					i, hit = parseArray(c, i+1, pathModifiers.Path)
+					i, hit = analyzeArray(c, i+1, pathModifiers.Path)
 					if hit {
 						return i, true
 					}
@@ -2714,5 +2714,574 @@ func analyzePath(path string) (r deeper) {
 	}
 	r.Part = path
 	r.Path = ""
+	return
+}
+
+// splitPathPipe splits a given path into two parts around the first unescaped '|' character.
+// It also handles nested structures and ensures correct parsing even when special characters
+// (e.g., braces, brackets, or quotes) are present.
+//
+// Parameters:
+//   - `path`: A string representing the input path that may contain nested objects, arrays, or a pipe character.
+//
+// Returns:
+//   - `left`: The part of the string before the first unescaped '|' character.
+//   - `right`: The part of the string after the first unescaped '|' character.
+//   - `ok`: A boolean indicating whether a valid split was found.
+//
+// Details:
+//   - If the path contains a '|' that is part of a nested structure or escaped, the function skips over it.
+//   - If the path starts with '{', the function uses the `squash` function to handle nested structures,
+//     ensuring correct splitting of the path while preserving JSON-like formats.
+//
+// Notes:
+//   - The function supports nested structures, including JSON-like objects and arrays (`{}`, `[]`), as well as
+//     selector expressions (e.g., `#[...]` or `#(...)`).
+//   - The function carefully skips escaped characters (e.g., `\|` or `\"`) and ensures that string literals
+//     enclosed in quotes are handled properly without premature termination.
+//   - It stops and splits the path at the first valid unescaped '|' encountered, returning the left and right parts.
+//
+// Example Usage:
+//
+//	For Input: `path1|path2`
+//	   Returns: `left="path1"`, `right="path2"`, `ok=true`
+//
+//	For Input: `{nested|structure}|path2`
+//	   Returns: `left="{nested|structure}"`, `right="path2"`, `ok=true`
+//
+//	For Input: `path_without_pipe`
+//	   Returns: `left=""`, `right=""`, `ok=false`
+func splitPathPipe(path string) (left, right string, ok bool) {
+	var possible bool
+	for i := 0; i < len(path); i++ {
+		if path[i] == '|' {
+			possible = true
+			break
+		}
+	}
+	if !possible {
+		return
+	}
+	if len(path) > 0 && path[0] == '{' {
+		squashed := squash(path[1:])
+		if len(squashed) < len(path)-1 {
+			squashed = path[:len(squashed)+1]
+			remain := path[len(squashed):]
+			if remain[0] == '|' {
+				return squashed, remain[1:], true
+			}
+		}
+		return
+	}
+	for i := 0; i < len(path); i++ {
+		if path[i] == '\\' {
+			i++
+		} else if path[i] == '.' {
+			if i == len(path)-1 {
+				return
+			}
+			if path[i+1] == '#' {
+				i += 2
+				if i == len(path) {
+					return
+				}
+				if path[i] == '[' || path[i] == '(' {
+					var start, end byte
+					if path[i] == '[' {
+						start, end = '[', ']'
+					} else {
+						start, end = '(', ')'
+					}
+					// inside selector, balance brackets
+					i++
+					depth := 1
+					for ; i < len(path); i++ {
+						if path[i] == '\\' {
+							i++
+						} else if path[i] == start {
+							depth++
+						} else if path[i] == end {
+							depth--
+							if depth == 0 {
+								break
+							}
+						} else if path[i] == '"' {
+							// inside selector string, balance quotes
+							i++
+							for ; i < len(path); i++ {
+								if path[i] == '\\' {
+									i++
+								} else if path[i] == '"' {
+									break
+								}
+							}
+						}
+					}
+				}
+			}
+		} else if path[i] == '|' {
+			return path[:i], path[i+1:], true
+		}
+	}
+	return
+}
+
+// analyzeArray processes and evaluates the path in the context of an array, checking
+// for matches and executing queries on elements within the array. It is responsible
+// for handling nested structures and queries, as well as determining if the analysis
+// matches the current path and value in the context.
+//
+// Parameters:
+//   - c (parser*): A pointer to the `parser` object that holds the current context,
+//     including the JSON data and the parsed path.
+//   - i (int): The current index in the JSON string being processed.
+//   - path (string): The path to be analyzed for array processing.
+//
+// Returns:
+//   - (int): The updated index after processing the array.
+//   - (bool): A boolean indicating whether the analysis was successful or not.
+//
+// Details:
+//   - The function analyzes a path related to arrays and performs various checks to
+//     determine if the array elements match the specified path and conditions.
+//   - It checks for array literals, objects, and nested structures, invoking appropriate
+//     parsing functions for each type.
+//   - If a query is present, it will evaluate the query on the current element and decide
+//     whether to continue the search or return a match.
+//   - The function supports queries on array elements (e.g., matching specific values),
+//     and it can return results in JSON format or execute specific actions (like calculating a value).
+//
+// Flow:
+//   - The function first processes the path and ensures that it is valid for array analysis.
+//   - It checks if the path includes an archive log, and if so, handles logging operations.
+//   - The core loop processes each element of the array, checking for string, numeric, object,
+//     or array elements and evaluating whether they match the query conditions, if any.
+//   - If the query is satisfied, the function performs further processing on the matching element,
+//     such as storing the result or calculating a value. If no query is provided, it directly
+//     sets the `c.value` with the matched result.
+//   - It also handles special cases like archive logs and nested array structures.
+//   - If no valid match is found, the function returns `false`, and the search continues.
+//
+// Example:
+//
+//	Input: `["apple", "banana", "cherry"]`
+//	If the query was for "banana", the function would find a match and return the result.
+//
+// Edge Cases:
+//   - Handles situations where no array is found or the query fails to match any element.
+//   - Properly handles nested arrays or objects within the JSON data, maintaining structure.
+//   - Takes into account escaped characters and special syntax (e.g., queries, JSON objects).
+func analyzeArray(c *parser, i int, path string) (int, bool) {
+	var _match, escVal, ok, hit bool
+	var val string
+	var h int
+	var aLog []int
+	var partIdx int
+	var multics []byte
+	var queryIndexes []int
+	analysis := analyzePath(path)
+	if !analysis.Arch {
+		n, ok := parseUint(analysis.Part)
+		if !ok {
+			partIdx = -1
+		} else {
+			partIdx = int(n)
+		}
+	}
+	if !analysis.More && analysis.Piped {
+		c.pipe = analysis.Pipe
+		c.piped = true
+	}
+
+	executeQuery := func(eVal Context) bool {
+		if analysis.query.All {
+			if len(multics) == 0 {
+				multics = append(multics, '[')
+			}
+		}
+		var tmp parser
+		tmp.value = eVal
+		calcSubstringIndex(c.json, &tmp)
+		parentIndex := tmp.value.index
+		var res Context
+		if eVal.kind == JSON {
+			res = eVal.Get(analysis.query.QueryPath)
+		} else {
+			if analysis.query.QueryPath != "" {
+				return false
+			}
+			res = eVal
+		}
+		if queryMatches(&analysis, res) {
+			if analysis.More {
+				left, right, ok := splitPathPipe(analysis.Path)
+				if ok {
+					analysis.Path = left
+					c.pipe = right
+					c.piped = true
+				}
+				res = eVal.Get(analysis.Path)
+			} else {
+				res = eVal
+			}
+			if analysis.query.All {
+				raw := res.unprocessed
+				if len(raw) == 0 {
+					raw = res.String()
+				}
+				if raw != "" {
+					if len(multics) > 1 {
+						multics = append(multics, ',')
+					}
+					multics = append(multics, raw...)
+					queryIndexes = append(queryIndexes, res.index+parentIndex)
+				}
+			} else {
+				c.value = res
+				return true
+			}
+		}
+		return false
+	}
+	for i < len(c.json)+1 {
+		if !analysis.Arch {
+			_match = partIdx == h
+			hit = _match && !analysis.More
+		}
+		h++
+		if analysis.ALogOk {
+			aLog = append(aLog, i)
+		}
+		for ; ; i++ {
+			var ch byte
+			if i > len(c.json) {
+				break
+			} else if i == len(c.json) {
+				ch = ']'
+			} else {
+				ch = c.json[i]
+			}
+			var num bool
+			switch ch {
+			default:
+				continue
+			case '"':
+				i++
+				i, val, escVal, ok = parseString(c.json, i)
+				if !ok {
+					return i, false
+				}
+				if analysis.query.On {
+					var cVal Context
+					if escVal {
+						cVal.strings = unescape(val[1 : len(val)-1])
+					} else {
+						cVal.strings = val[1 : len(val)-1]
+					}
+					cVal.unprocessed = val
+					cVal.kind = String
+					if executeQuery(cVal) {
+						return i, true
+					}
+				} else if hit {
+					if analysis.ALogOk {
+						break
+					}
+					if escVal {
+						c.value.strings = unescape(val[1 : len(val)-1])
+					} else {
+						c.value.strings = val[1 : len(val)-1]
+					}
+					c.value.unprocessed = val
+					c.value.kind = String
+					return i, true
+				}
+			case '{':
+				if _match && !hit {
+					i, hit = parseJsonObject(c, i+1, analysis.Path)
+					if hit {
+						if analysis.ALogOk {
+							break
+						}
+						return i, true
+					}
+				} else {
+					i, val = parseSquashJson(c.json, i)
+					if analysis.query.On {
+						if executeQuery(Context{unprocessed: val, kind: JSON}) {
+							return i, true
+						}
+					} else if hit {
+						if analysis.ALogOk {
+							break
+						}
+						c.value.unprocessed = val
+						c.value.kind = JSON
+						return i, true
+					}
+				}
+			case '[':
+				if _match && !hit {
+					i, hit = analyzeArray(c, i+1, analysis.Path)
+					if hit {
+						if analysis.ALogOk {
+							break
+						}
+						return i, true
+					}
+				} else {
+					i, val = parseSquashJson(c.json, i)
+					if analysis.query.On {
+						if executeQuery(Context{unprocessed: val, kind: JSON}) {
+							return i, true
+						}
+					} else if hit {
+						if analysis.ALogOk {
+							break
+						}
+						c.value.unprocessed = val
+						c.value.kind = JSON
+						return i, true
+					}
+				}
+			case 'n':
+				if i+1 < len(c.json) && c.json[i+1] != 'u' {
+					num = true
+					break
+				}
+				fallthrough
+			case 't', 'f':
+				vc := c.json[i]
+				i, val = parseJsonLiteral(c.json, i)
+				if analysis.query.On {
+					var cVal Context
+					cVal.unprocessed = val
+					switch vc {
+					case 't':
+						cVal.kind = True
+					case 'f':
+						cVal.kind = False
+					}
+					if executeQuery(cVal) {
+						return i, true
+					}
+				} else if hit {
+					if analysis.ALogOk {
+						break
+					}
+					c.value.unprocessed = val
+					switch vc {
+					case 't':
+						c.value.kind = True
+					case 'f':
+						c.value.kind = False
+					}
+					return i, true
+				}
+			case '+', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+				'i', 'I', 'N':
+				num = true
+			case ']':
+				if analysis.Arch && analysis.Part == "#" {
+					if analysis.ALogOk {
+						left, right, ok := splitPathPipe(analysis.ALogKey)
+						if ok {
+							analysis.ALogKey = left
+							c.pipe = right
+							c.piped = true
+						}
+						var indexes = make([]int, 0, 64)
+						var jsonVal = make([]byte, 0, 64)
+						jsonVal = append(jsonVal, '[')
+						for j, k := 0, 0; j < len(aLog); j++ {
+							idx := aLog[j]
+							for idx < len(c.json) {
+								switch c.json[idx] {
+								case ' ', '\t', '\r', '\n':
+									idx++
+									continue
+								}
+								break
+							}
+							if idx < len(c.json) && c.json[idx] != ']' {
+								_, res, ok := parseAny(c.json, idx, true)
+								if ok {
+									res := res.Get(analysis.ALogKey)
+									if res.Exists() {
+										if k > 0 {
+											jsonVal = append(jsonVal, ',')
+										}
+										raw := res.unprocessed
+										if len(raw) == 0 {
+											raw = res.String()
+										}
+										jsonVal = append(jsonVal, []byte(raw)...)
+										indexes = append(indexes, res.index)
+										k++
+									}
+								}
+							}
+						}
+						jsonVal = append(jsonVal, ']')
+						c.value.kind = JSON
+						c.value.unprocessed = string(jsonVal)
+						c.value.indexes = indexes
+						return i + 1, true
+					}
+					if analysis.ALogOk {
+						break
+					}
+
+					c.value.kind = Number
+					c.value.numeric = float64(h - 1)
+					c.value.unprocessed = strconv.Itoa(h - 1)
+					c.calc = true
+					return i + 1, true
+				}
+				if !c.value.Exists() {
+					if len(multics) > 0 {
+						c.value = Context{
+							unprocessed: string(append(multics, ']')),
+							kind:        JSON,
+							indexes:     queryIndexes,
+						}
+					} else if analysis.query.All {
+						c.value = Context{
+							unprocessed: "[]",
+							kind:        JSON,
+						}
+					}
+				}
+				return i + 1, false
+			}
+			if num {
+				i, val = parseNumeric(c.json, i)
+				if analysis.query.On {
+					var cVal Context
+					cVal.unprocessed = val
+					cVal.kind = Number
+					cVal.numeric, _ = strconv.ParseFloat(val, 64)
+					if executeQuery(cVal) {
+						return i, true
+					}
+				} else if hit {
+					if analysis.ALogOk {
+						break
+					}
+					c.value.unprocessed = val
+					c.value.kind = Number
+					c.value.numeric, _ = strconv.ParseFloat(val, 64)
+					return i, true
+				}
+			}
+			break
+		}
+	}
+	return i, false
+}
+
+// analyzeSubSelectors parses a sub-selection string, which can either be in the form of
+// '[path1,path2]' or '{"field1":path1,"field2":path2}' type structure. It returns the parsed
+// selectors from the given path, which includes the name and path of each selector within
+// the structure. The function assumes that the first character in the path is either '[' or '{',
+// and this check is expected to be performed before calling the function.
+//
+// Parameters:
+//   - path: A string representing the sub-selection in either array or object format. The string
+//     must begin with either '[' (array) or '{' (object), and the structure should contain
+//     valid selectors or field-path pairs.
+//
+// Returns:
+//   - selectors: A slice of `subSelector` structs containing the parsed selectors and their associated paths.
+//   - out: The remaining part of the path after parsing the selectors. This will be the part following the
+//     closing bracket (']') or brace ('}') if applicable.
+//   - ok: A boolean indicating whether the parsing was successful. It returns true if the parsing was
+//     successful and the structure was valid, or false if there was an error during parsing.
+//
+// Example Usage:
+//
+//	path := "[field1:subpath1,field2:subpath2]"
+//	selectors, out, ok := analyzeSubSelectors(path)
+//	// selectors: [{name: "field1", path: "subpath1"}, {name: "field2", path: "subpath2"}]
+//	// out: "" (no remaining part of the path)
+//	// ok: true (parsing was successful)
+//
+// Details:
+//   - The function iterates through each character of the input path and identifies different types
+//     of characters (e.g., commas, colons, brackets, braces, and quotes).
+//   - It tracks the depth of nested structures (array or object) using the `depth` variable. This ensures
+//     proper handling of nested elements within the sub-selection.
+//   - The function supports escaping characters with backslashes ('\') and handles this case while parsing.
+//   - If a colon (':') is encountered, it indicates a potential name-path pair. The function captures
+//     the name and path accordingly, and if no colon is found, it assumes the value is just a path.
+//   - The function handles both array-style sub-selections (e.g., [path1,path2]) and object-style
+//     sub-selections (e.g., {"field1":path1,"field2":path2}).
+//   - If an error is encountered during parsing (e.g., mismatched brackets or braces), the function
+//     returns an empty slice and `false` to indicate a failure.
+//
+// Flow:
+//   - The function first initializes tracking variables like `modifier`, `depth`, `colon`, and `start`.
+//   - It iterates through the path, checking for different characters, such as backslashes (escape),
+//     colons (for name-path pair separation), commas (for separating selectors), and brackets/braces (for
+//     nested structures).
+//   - If a valid selector is found, it is stored in the `selectors` slice.
+//   - The function returns the parsed selectors, the remaining path, and a success flag.
+func analyzeSubSelectors(path string) (selectors []subSelector, out string, ok bool) {
+	modifier := 0
+	depth := 1
+	colon := 0
+	start := 1
+	i := 1
+	pushSelectors := func() {
+		var selector subSelector
+		if colon == 0 {
+			selector.path = path[start:i]
+		} else {
+			selector.name = path[start:colon]
+			selector.path = path[colon+1 : i]
+		}
+		selectors = append(selectors, selector)
+		colon = 0
+		modifier = 0
+		start = i + 1
+	}
+	for ; i < len(path); i++ {
+		switch path[i] {
+		case '\\':
+			i++
+		case '@':
+			if modifier == 0 && i > 0 && (path[i-1] == '.' || path[i-1] == '|') {
+				modifier = i
+			}
+		case ':':
+			if modifier == 0 && colon == 0 && depth == 1 {
+				colon = i
+			}
+		case ',':
+			if depth == 1 {
+				pushSelectors()
+			}
+		case '"':
+			i++
+		loop:
+			for ; i < len(path); i++ {
+				switch path[i] {
+				case '\\':
+					i++
+				case '"':
+					break loop
+				}
+			}
+		case '[', '(', '{':
+			depth++
+		case ']', ')', '}':
+			depth--
+			if depth == 0 {
+				pushSelectors()
+				path = path[i+1:]
+				return selectors, path, true
+			}
+		}
+	}
 	return
 }
