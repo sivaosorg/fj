@@ -1240,6 +1240,70 @@ func verifyAny(data []byte, i int) (val int, ok bool) {
 	return i, false
 }
 
+// verifyJson attempts to validate the data starting at index i as a valid JSON payload. It checks for
+// the presence of valid JSON values after skipping any whitespace characters (spaces, tabs, newlines, etc.).
+// It calls the `verifyAny` function to validate the first JSON value and ensures that there are no unexpected
+// characters after the valid value.
+//
+// Parameters:
+//   - data: A byte slice containing the JSON input to validate.
+//   - i: The starting index in the byte slice where the validation should begin.
+//
+// Returns:
+//   - val: The index immediately after the validated JSON payload, or the current index if validation fails.
+//   - ok: A boolean indicating whether the payload is valid. If true, the input is a valid JSON payload;
+//     if false, the payload is not valid.
+//
+// Notes:
+//   - The function starts by checking the first non-whitespace character in the data. It skips over any
+//     whitespace (spaces, tabs, newlines, carriage returns) before trying to validate the payload.
+//   - It then calls the `verifyAny` function to check for a valid JSON value (object, array, string, numeric,
+//     boolean, or null) at the current index.
+//   - After the first valid value is found, the function ensures that the rest of the input contains only
+//     whitespace (ignoring spaces, tabs, newlines) before validating that the payload ends correctly.
+//   - If the first value is valid and no unexpected characters are found, it returns true along with the
+//     index after the valid value. If any issue is encountered, it returns false.
+//
+// Example Usage:
+//
+//	data := []byte(`{"key1": 123, "key2": "value"}`)
+//	i := 0
+//	val, ok := verifyJson(data, i)
+//	// val: 28 (index after the valid payload)
+//	// ok: true (because the input is a valid JSON payload)
+//
+// Details:
+//   - The function ensures that the input data starts with a valid JSON value, as recognized by the `verifyAny`
+//     function, and that there are no unexpected characters after that value.
+//   - The function returns false if the JSON payload is incomplete or invalid.
+func verifyJson(data []byte, i int) (val int, ok bool) {
+	for ; i < len(data); i++ { // Iterate through the data starting from index i.
+		// Handle unexpected characters in the payload.
+		switch data[i] {
+		default:
+			// If the character is unexpected, call verifyAny to validate the first valid JSON value.
+			i, ok = verifyAny(data, i)
+			if !ok {
+				return i, false // Return false if the value is not valid.
+			}
+			// After a valid JSON value, continue to check if the rest of the data only contains whitespace.
+			for ; i < len(data); i++ {
+				switch data[i] {
+				default:
+					return i, false // Return false if there is any invalid character after the value.
+				case ' ', '\t', '\n', '\r': // Skip over whitespace characters.
+					continue
+				}
+			}
+			// If all subsequent characters are whitespace, return true along with the index after the valid value.
+			return i, true
+		case ' ', '\t', '\n', '\r': // Skip over whitespace characters (spaces, tabs, newlines, carriage returns).
+			continue
+		}
+	}
+	return i, false // Return false if the end of data is reached without a valid payload.
+}
+
 // lastSegment extracts the last part of a given path string, where the path segments are separated by
 // either a pipe ('|') or a dot ('.'). The function returns the substring after the last separator,
 // taking escape sequences (backslashes) into account. It ensures that any escaped separator is ignored.

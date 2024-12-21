@@ -1091,30 +1091,6 @@ func GetManyBytes(json []byte, path ...string) []Context {
 	return res
 }
 
-func validatePayload(data []byte, i int) (val int, ok bool) {
-	for ; i < len(data); i++ {
-		switch data[i] {
-		default:
-			i, ok = verifyAny(data, i)
-			if !ok {
-				return i, false
-			}
-			for ; i < len(data); i++ {
-				switch data[i] {
-				default:
-					return i, false
-				case ' ', '\t', '\n', '\r':
-					continue
-				}
-			}
-			return i, true
-		case ' ', '\t', '\n', '\r':
-			continue
-		}
-	}
-	return i, false
-}
-
 // Valid returns true if the input is valid json.
 //
 //	if !bjson.Valid(json) {
@@ -1122,7 +1098,7 @@ func validatePayload(data []byte, i int) (val int, ok bool) {
 //	}
 //	value := bjson.Get(json, "name.last")
 func Valid(json string) bool {
-	_, ok := validatePayload(fromStr2Bytes(json), 0)
+	_, ok := verifyJson(fromStr2Bytes(json), 0)
 	return ok
 }
 
@@ -1135,7 +1111,7 @@ func Valid(json string) bool {
 //
 // If working with bytes, this method preferred over ValidBytes(string(data))
 func ValidBytes(json []byte) bool {
-	_, ok := validatePayload(json, 0)
+	_, ok := verifyJson(json, 0)
 	return ok
 }
 
