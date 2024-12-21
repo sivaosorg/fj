@@ -604,14 +604,14 @@ func unescape(json string) string {
 				if i+5 > len(json) {
 					return string(str)
 				}
-				r := goRune(json[i+1:]) // Decode the Unicode code point (assuming `goRune` is a helper function).
+				r := hexToRune(json[i+1:]) // Decode the Unicode code point (assuming `goRune` is a helper function).
 				i += 5
 				if utf16.IsSurrogate(r) { // Check for surrogate pairs (used for characters outside the Basic Multilingual Plane).
 					// If a second surrogate is found, decode it into the correct rune.
 					if len(json[i:]) >= 6 && json[i] == '\\' &&
 						json[i+1] == 'u' {
 						// Decode the second part of the surrogate pair.
-						r = utf16.DecodeRune(r, goRune(json[i+2:]))
+						r = utf16.DecodeRune(r, hexToRune(json[i+2:]))
 						i += 6
 					}
 				}
@@ -625,4 +625,99 @@ func unescape(json string) string {
 		}
 	}
 	return string(str)
+}
+
+// hexToRune converts a hexadecimal Unicode escape sequence (represented as a string)
+// into the corresponding Unicode code point (rune).
+//
+// This function expects a string containing a 4-digit hexadecimal number that represents
+// a Unicode code point (e.g., "0048" for the letter 'H') and converts it to a rune (i.e., a Unicode code point).
+//
+// Parameters:
+//   - `json`: A string containing the first 4 characters of the Unicode escape sequence in hexadecimal format
+//     (e.g., `json` would be `"0048"` for the Unicode code point 'H').
+//
+// Returns:
+//   - A rune corresponding to the Unicode code point represented by the provided hexadecimal string.
+//
+// Notes:
+//   - The function assumes that the input string (`json`) is at least 4 characters long and contains valid
+//     hexadecimal digits (e.g., "0048"). If the input string is shorter or invalid, the function will panic or behave
+//     unpredictably. In production code, input validation should be added to handle such cases safely.
+//   - The function only parses the first 4 characters of the input string as a 16-bit hexadecimal number, suitable
+//     for representing Basic Multilingual Plane (BMP) characters (Unicode code points U+0000 to U+FFFF). For surrogate pairs
+//     (characters outside the BMP), additional handling is required.
+//
+// Example Usage:
+//
+//		input := "0048" // Hexadecimal for Unicode character 'H'
+//		result := hexToRune(input)
+//		// result: 'H' (rune corresponding to U+0048)
+//
+//	  Note: This function is specifically designed to handle only the first 4 characters of a Unicode escape sequence.
+func hexToRune(json string) rune {
+	n, _ := strconv.ParseUint(json[:4], 16, 64)
+	return rune(n)
+}
+
+// lessInsensitive compares two strings a and b in a case-insensitive manner.
+// It returns true if string a is lexicographically less than string b, ignoring case differences.
+// If both strings are equal in a case-insensitive comparison, it returns false.
+//
+// Parameters:
+//   - `a`: The first string to compare.
+//   - `b`: The second string to compare.
+//
+// Returns:
+//   - `true`: If string a is lexicographically smaller than string b in a case-insensitive comparison.
+//   - `false`: Otherwise.
+//
+// Notes:
+//   - The function compares the strings character by character. If both characters are uppercase, they are compared directly.
+//   - If one character is uppercase and the other is lowercase, the uppercase character is treated as the corresponding lowercase character.
+//   - If neither character is uppercase, they are compared directly without any transformation.
+//   - The function handles cases where the strings have different lengths and returns true if the strings are equal up to the point where the shorter string ends.
+//
+// Example Usage:
+//
+//	result := lessInsensitive("apple", "Apple")
+//	// result: false, because "apple" and "Apple" are considered equal when case is ignored
+//
+//	result := lessInsensitive("apple", "banana")
+//	// result: true, because "apple" is lexicographically smaller than "banana"
+func lessInsensitive(a, b string) bool {
+	for i := 0; i < len(a) && i < len(b); i++ {
+		if a[i] >= 'A' && a[i] <= 'Z' {
+			if b[i] >= 'A' && b[i] <= 'Z' {
+				// both are uppercase, do nothing
+				if a[i] < b[i] {
+					return true
+				} else if a[i] > b[i] {
+					return false
+				}
+			} else {
+				// a is uppercase, convert a to lowercase
+				if a[i]+32 < b[i] {
+					return true
+				} else if a[i]+32 > b[i] {
+					return false
+				}
+			}
+		} else if b[i] >= 'A' && b[i] <= 'Z' {
+			// b is uppercase, convert b to lowercase
+			if a[i] < b[i]+32 {
+				return true
+			} else if a[i] > b[i]+32 {
+				return false
+			}
+		} else {
+			// neither are uppercase
+			if a[i] < b[i] {
+				return true
+			} else if a[i] > b[i] {
+				return false
+			}
+		}
+	}
+	return len(a) < len(b)
 }

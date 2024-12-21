@@ -1963,23 +1963,63 @@ func Get(json, path string) Context {
 	return c.value
 }
 
-// GetBytes searches json for the specified path.
-// If working with bytes, this method preferred over Get(string(data), path)
+// GetBytes searches the provided JSON byte slice for the specified path and returns a `Context`
+// representing the extracted data. This method is preferred over `Get(string(data), path)` when working
+// with JSON data in byte slice format, as it directly operates on the byte slice, minimizing memory
+// allocations and unnecessary copies.
+//
+// Parameters:
+//   - `json`: A byte slice containing the JSON data to process.
+//   - `path`: A string representing the path in the JSON data to extract.
+//
+// Returns:
+//   - A `Context` struct containing the processed JSON data. The `Context` struct includes both
+//     the raw unprocessed JSON string and the specific extracted string based on the given path.
+//
+// Notes:
+//   - This function internally calls the `getBytes` function, which uses unsafe pointer operations
+//     to minimize allocations and efficiently handle string slice headers.
+//   - The function avoids unnecessary memory allocations by directly processing the byte slice and
+//     utilizing memory safety features to manage substring extraction when the `strings` part is
+//     a substring of the `unprocessed` part of the JSON data.
+//
+// Example:
+//
+//	jsonBytes := []byte(`{"key": "value", "nested": {"innerKey": "innerValue"}}`)
+//	path := "nested.innerKey"
+//	context := GetBytes(jsonBytes, path)
+//	fmt.Println("Unprocessed:", context.unprocessed) // Output: `{"key": "value", "nested": {"innerKey": "innerValue"}}`
+//	fmt.Println("Strings:", context.strings)         // Output: `"innerValue"`
 func GetBytes(json []byte, path string) Context {
 	return getBytes(json, path)
 }
 
-// goRune returns the rune from the the \uXXXX
-func goRune(json string) rune {
-	n, _ := strconv.ParseUint(json[:4], 16, 64)
-	return rune(n)
-}
-
-// Less return true if a token is less than another token.
-// The caseSensitive parameter is used when the tokens are Strings.
-// The order when comparing two different type is:
+// Less compares two Context values (tokens) and returns true if the first token is considered less than the second one.
+// It performs comparisons based on the type of the tokens and their respective values.
+// The comparison order follows: Null < False < Number < String < True < JSON.
+// This function also supports case-insensitive comparisons for String type tokens based on the caseSensitive parameter.
 //
-//	Null < False < Number < String < True < JSON
+// Parameters:
+//   - token: The other Context token to compare with the current one (t).
+//   - caseSensitive: A boolean flag that indicates whether the comparison for String type tokens should be case-sensitive.
+//   - If true, the comparison is case-sensitive (i.e., "a" < "b" but "A" < "b").
+//   - If false, the comparison is case-insensitive (i.e., "a" == "A").
+//
+// Returns:
+//   - true: If the current token (t) is considered less than the provided token.
+//   - false: If the current token (t) is not considered less than the provided token.
+//
+// The function first compares the `kind` of both tokens, which represents their JSON types.
+// If both tokens have the same kind, it proceeds to compare based on their specific types:
+// - For String types, it compares the strings based on the case-sensitive flag.
+// - For Number types, it compares the numeric values directly.
+// - For other types, it compares the unprocessed JSON values as raw strings (this could be useful for types like Null, Boolean, etc.).
+//
+// Example usage:
+//
+//	context1 := Context{kind: String, strings: "apple"}
+//	context2 := Context{kind: String, strings: "banana"}
+//	result := context1.Less(context2, true) // This would return true because "apple" < "banana" and case-sensitive comparison is used.
 func (t Context) Less(token Context, caseSensitive bool) bool {
 	if t.kind < token.kind {
 		return true
@@ -1991,49 +2031,12 @@ func (t Context) Less(token Context, caseSensitive bool) bool {
 		if caseSensitive {
 			return t.strings < token.strings
 		}
-		return stringLessInsensitive(t.strings, token.strings)
+		return lessInsensitive(t.strings, token.strings)
 	}
 	if t.kind == Number {
 		return t.numeric < token.numeric
 	}
 	return t.unprocessed < token.unprocessed
-}
-
-func stringLessInsensitive(a, b string) bool {
-	for i := 0; i < len(a) && i < len(b); i++ {
-		if a[i] >= 'A' && a[i] <= 'Z' {
-			if b[i] >= 'A' && b[i] <= 'Z' {
-				// both are uppercase, do nothing
-				if a[i] < b[i] {
-					return true
-				} else if a[i] > b[i] {
-					return false
-				}
-			} else {
-				// a is uppercase, convert a to lowercase
-				if a[i]+32 < b[i] {
-					return true
-				} else if a[i]+32 > b[i] {
-					return false
-				}
-			}
-		} else if b[i] >= 'A' && b[i] <= 'Z' {
-			// b is uppercase, convert b to lowercase
-			if a[i] < b[i]+32 {
-				return true
-			} else if a[i] > b[i]+32 {
-				return false
-			}
-		} else {
-			// neither are uppercase
-			if a[i] < b[i] {
-				return true
-			} else if a[i] > b[i] {
-				return false
-			}
-		}
-	}
-	return len(a) < len(b)
 }
 
 // parseAny parses the next value from a json string.

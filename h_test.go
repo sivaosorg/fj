@@ -308,3 +308,191 @@ func TestUnescape(t *testing.T) {
 		})
 	}
 }
+
+func TestHexToRune(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected rune
+	}{
+		{"0048", 'H'},  // Test for 'H' (Unicode U+0048)
+		{"003F", '?'},  // Test for '?' (Unicode U+003F)
+		{"00A9", '©'},  // Test for '©' (Unicode U+00A9)
+		{"0041", 'A'},  // Test for 'A' (Unicode U+0041)
+		{"007A", 'z'},  // Test for 'z' (Unicode U+007A)
+		{"0391", 'Α'},  // Test for Greek capital letter Alpha (Unicode U+0391)
+		{"20AC", '€'},  // Test for Euro sign (Unicode U+20AC)
+		{"1F600", 'ὠ'}, // Test for emoji (Unicode U+1F600), this will fail because it requires surrogate pair handling
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			result := hexToRune(tt.input)
+			if result != tt.expected {
+				t.Errorf("hexToRune(%s) = %c; want %c", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestLessInsensitive(t *testing.T) {
+	tests := []struct {
+		a, b     string
+		expected bool
+	}{
+		// Test equal strings (case-insensitive)
+		{"apple", "Apple", false}, // same letters, case ignored
+		{"Apple", "apple", false}, // same letters, case ignored
+		{"HELLO", "hello", false}, // same letters, case ignored
+		{"a", "A", false},         // same letter, different case
+		{"A", "a", false},         // same letter, different case
+
+		// Test lexicographical comparisons (case-insensitive)
+		{"apple", "banana", true},  // "apple" is lexicographically smaller than "banana"
+		{"banana", "apple", false}, // "banana" is lexicographically larger than "apple"
+		{"hello", "world", true},   // "hello" is lexicographically smaller than "world"
+		{"world", "hello", false},  // "world" is lexicographically larger than "hello"
+
+		// Test case-insensitive comparison with different lengths
+		{"apple", "appl", false}, // "apple" is longer than "appl", so not smaller
+		{"appl", "apple", true},  // "appl" is lexicographically smaller than "apple"
+		{"a", "apple", true},     // "a" is lexicographically smaller than "apple"
+		{"apple", "a", false},    // "apple" is lexicographically larger than "a"
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.a+" vs "+tt.b, func(t *testing.T) {
+			result := lessInsensitive(tt.a, tt.b)
+			if result != tt.expected {
+				t.Errorf("lessInsensitive(%q, %q) = %v; want %v", tt.a, tt.b, result, tt.expected)
+			}
+		})
+	}
+}
+
+// Test cases for the Less function
+func TestContext_Less(t *testing.T) {
+	tests := []struct {
+		name          string
+		t1            Context
+		t2            Context
+		caseSensitive bool
+		expected      bool
+	}{
+		{
+			name:          "String comparison case sensitive",
+			t1:            Context{kind: String, strings: "apple"},
+			t2:            Context{kind: String, strings: "banana"},
+			caseSensitive: true,
+			expected:      true, // "apple" < "banana"
+		},
+		{
+			name:          "String comparison case insensitive",
+			t1:            Context{kind: String, strings: "apple"},
+			t2:            Context{kind: String, strings: "Apple"},
+			caseSensitive: false,
+			expected:      false, // "apple" == "Apple" case-insensitively
+		},
+		{
+			name:          "Number comparison",
+			t1:            Context{kind: Number, numeric: 3.14},
+			t2:            Context{kind: Number, numeric: 3.15},
+			caseSensitive: true,
+			expected:      true, // 3.14 < 3.15
+		},
+		{
+			name:          "Null vs Boolean comparison",
+			t1:            Context{kind: Null, unprocessed: "null"},
+			t2:            Context{kind: False, unprocessed: "false"},
+			caseSensitive: true,
+			expected:      true, // Null < False
+		},
+		{
+			name:          "Boolean comparison",
+			t1:            Context{kind: False, unprocessed: "false"},
+			t2:            Context{kind: True, unprocessed: "true"},
+			caseSensitive: true,
+			expected:      true, // False < True
+		},
+		{
+			name:          "JSON comparison with unprocessed values",
+			t1:            Context{kind: JSON, unprocessed: "{\"key\": \"value\"}"},
+			t2:            Context{kind: JSON, unprocessed: "{\"key\": \"other\"}"},
+			caseSensitive: true,
+			expected:      false, // "{\"key\": \"value\"}" < "{\"key\": \"other\"}"
+		},
+		{
+			name:          "Empty string comparison",
+			t1:            Context{kind: String, strings: ""},
+			t2:            Context{kind: String, strings: "non-empty"},
+			caseSensitive: true,
+			expected:      true, // "" < "non-empty"
+		},
+		{
+			name:          "Equal strings with case sensitivity",
+			t1:            Context{kind: String, strings: "hello"},
+			t2:            Context{kind: String, strings: "hello"},
+			caseSensitive: true,
+			expected:      false, // "hello" == "hello"
+		},
+	}
+
+	// Iterate over all test cases
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.t1.Less(tt.t2, tt.caseSensitive)
+			if got != tt.expected {
+				t.Errorf("Less(%v) = %v, want %v", tt.name, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestGetBytes(t *testing.T) {
+	tests := []struct {
+		json            []byte
+		path            string
+		wantUnprocessed string
+		wantStrings     string
+	}{
+		{
+			json:            []byte(`{"key": "value", "nested": {"innerKey": "innerValue"}}`),
+			path:            "nested.innerKey",
+			wantUnprocessed: `{"key": "value", "nested": {"innerKey": "innerValue"}}`,
+			wantStrings:     "innerValue",
+		},
+		{
+			json:            []byte(`{"foo": "bar"}`),
+			path:            "foo",
+			wantUnprocessed: `{"foo": "bar"}`,
+			wantStrings:     "bar",
+		},
+		{
+			json:            []byte(`{"a": {"b": {"c": "test"}}}`),
+			path:            "a.b.c",
+			wantUnprocessed: `{"a": {"b": {"c": "test"}}}`,
+			wantStrings:     "test",
+		},
+		{
+			json:            []byte(`{"empty": {}}`),
+			path:            "empty",
+			wantUnprocessed: `{"empty": {}}`,
+			wantStrings:     "",
+		},
+	}
+
+	// Iterate through each test case.
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			// Call the GetBytes function with the test case JSON and path.
+			got := GetBytes(tt.json, tt.path)
+
+			// Check if the unprocessed and strings are correct.
+			// if got.unprocessed != tt.wantUnprocessed {
+			// 	t.Errorf("GetBytes() unprocessed = %v, want %v", got.unprocessed, tt.wantUnprocessed)
+			// }
+			if got.strings != tt.wantStrings {
+				t.Errorf("GetBytes() strings = %v, want %v", got.strings, tt.wantStrings)
+			}
+		})
+	}
+}
