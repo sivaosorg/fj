@@ -571,14 +571,14 @@ func unescape(json string) string {
 				if i+5 > len(json) {
 					return string(str)
 				}
-				r := hexToRune(json[i+1:]) // Decode the Unicode code point (assuming `goRune` is a helper function).
+				r := hex2Rune(json[i+1:]) // Decode the Unicode code point (assuming `goRune` is a helper function).
 				i += 5
 				if utf16.IsSurrogate(r) { // Check for surrogate pairs (used for characters outside the Basic Multilingual Plane).
 					// If a second surrogate is found, decode it into the correct rune.
 					if len(json[i:]) >= 6 && json[i] == '\\' &&
 						json[i+1] == 'u' {
 						// Decode the second part of the surrogate pair.
-						r = utf16.DecodeRune(r, hexToRune(json[i+2:]))
+						r = utf16.DecodeRune(r, hex2Rune(json[i+2:]))
 						i += 6
 					}
 				}
@@ -594,7 +594,7 @@ func unescape(json string) string {
 	return string(str)
 }
 
-// hexToRune converts a hexadecimal Unicode escape sequence (represented as a string)
+// hex2Rune converts a hexadecimal Unicode escape sequence (represented as a string)
 // into the corresponding Unicode code point (rune).
 //
 // This function expects a string containing a 4-digit hexadecimal number that represents
@@ -618,11 +618,11 @@ func unescape(json string) string {
 // Example Usage:
 //
 //		input := "0048" // Hexadecimal for Unicode character 'H'
-//		result := hexToRune(input)
+//		result := hex2Rune(input)
 //		// result: 'H' (rune corresponding to U+0048)
 //
 //	  Note: This function is specifically designed to handle only the first 4 characters of a Unicode escape sequence.
-func hexToRune(json string) rune {
+func hex2Rune(json string) rune {
 	n, _ := strconv.ParseUint(json[:4], 16, 64)
 	return rune(n)
 }
@@ -1879,6 +1879,193 @@ func unescapeJsonEncoded(json string) (raw string, unescaped string) {
 	return json, json[1:]
 }
 
+// isModifierOrJsonStart checks whether the first character of the input string `s` is a special character
+// (such as '@', '[', or '{') that might indicate a modifier or a JSON structure in the context of processing.
+//
+// The function performs the following checks:
+//   - If the first character is '@', it further inspects if the following characters indicate a modifier.
+//   - If the first character is '[' or '{', it returns `true`, indicating a potential JSON array or object.
+//   - The function will return `false` for any other characters or if modifiers are disabled.
+//
+// Parameters:
+//   - `s`: A string to be checked, which can be a part of a JSON structure or an identifier with a modifier.
+//
+// Returns:
+//   - `bool`: `true` if the first character is '@' followed by a modifier, or if the first character is '[' or '{'.
+//     `false` otherwise.
+//
+// Example Usage:
+//
+//	s1 := "@modifier|value"
+//	isModifierOrJsonStart(s1)
+//	// Returns: true (because it starts with '@' and is followed by a modifier)
+//
+//	s2 := "[1, 2, 3]"
+//	isModifierOrJsonStart(s2)
+//	// Returns: true (because it starts with '[')
+//
+//	s3 := "{ \"key\": \"value\" }"
+//	isModifierOrJsonStart(s3)
+//	// Returns: true (because it starts with '{')
+//
+//	s4 := "normalString"
+//	isModifierOrJsonStart(s4)
+//	// Returns: false (no '@', '[', or '{')
+//
+// Details:
+//   - The function first checks if modifiers are disabled (by `DisableModifiers` flag). If they are, it returns `false` immediately.
+//   - If the string starts with '@', it scans for a potential modifier by checking if there is a '.' or '|' after it,
+//     and verifies whether the modifier exists in the `modifiers` map.
+//   - If the string starts with '[' or '{', it immediately returns `true`, as those characters typically indicate the start of a JSON array or object.
+func isModifierOrJsonStart(s string) bool {
+	if DisableModifiers {
+		return false
+	}
+	c := s[0]
+	if c == '@' {
+		i := 1
+		for ; i < len(s); i++ {
+			if s[i] == '.' || s[i] == '|' || s[i] == ':' {
+				break
+			}
+		}
+		_, ok := modifiers[s[1:i]]
+		return ok
+	}
+	return c == '[' || c == '{'
+}
+
+// matchSafely checks if a string matches a pattern with a complexity limit to
+// avoid excessive computational cost, such as those from ReDos (Regular Expression Denial of Service) attacks.
+//
+// This function utilizes the `MatchLimit` function from `unify4g` to perform the matching, enforcing a maximum
+// complexity limit of 10,000. The function aims to prevent situations where matching could lead to long or
+// excessive computation, particularly when dealing with user-controlled input.
+//
+// Parameters:
+//   - `str`: The string to match against the pattern.
+//   - `pattern`: The pattern string to match, which may include wildcards or other special characters.
+//
+// Returns:
+//   - `bool`: `true` if the `str` matches the `pattern` within the set complexity limit; otherwise `false`.
+//
+// Example:
+//
+//	result := matchSafely("hello", "h*o") // Returns `true` if the pattern matches the string within the complexity limit.
+func matchSafely(str, pattern string) bool {
+	matched, _ := unify4g.MatchLimit(str, pattern, 10000)
+	return matched
+}
+
+// splitPathPipe splits a given path into two parts around the first unescaped '|' character.
+// It also handles nested structures and ensures correct parsing even when special characters
+// (e.g., braces, brackets, or quotes) are present.
+//
+// Parameters:
+//   - `path`: A string representing the input path that may contain nested objects, arrays, or a pipe character.
+//
+// Returns:
+//   - `left`: The part of the string before the first unescaped '|' character.
+//   - `right`: The part of the string after the first unescaped '|' character.
+//   - `ok`: A boolean indicating whether a valid split was found.
+//
+// Details:
+//   - If the path contains a '|' that is part of a nested structure or escaped, the function skips over it.
+//   - If the path starts with '{', the function uses the `squash` function to handle nested structures,
+//     ensuring correct splitting of the path while preserving JSON-like formats.
+//
+// Notes:
+//   - The function supports nested structures, including JSON-like objects and arrays (`{}`, `[]`), as well as
+//     selector expressions (e.g., `#[...]` or `#(...)`).
+//   - The function carefully skips escaped characters (e.g., `\|` or `\"`) and ensures that string literals
+//     enclosed in quotes are handled properly without premature termination.
+//   - It stops and splits the path at the first valid unescaped '|' encountered, returning the left and right parts.
+//
+// Example Usage:
+//
+//	For Input: `path1|path2`
+//	   Returns: `left="path1"`, `right="path2"`, `ok=true`
+//
+//	For Input: `{nested|structure}|path2`
+//	   Returns: `left="{nested|structure}"`, `right="path2"`, `ok=true`
+//
+//	For Input: `path_without_pipe`
+//	   Returns: `left=""`, `right=""`, `ok=false`
+func splitPathPipe(path string) (left, right string, ok bool) {
+	var possible bool
+	for i := 0; i < len(path); i++ {
+		if path[i] == '|' {
+			possible = true
+			break
+		}
+	}
+	if !possible {
+		return
+	}
+	if len(path) > 0 && path[0] == '{' {
+		squashed := squash(path[1:])
+		if len(squashed) < len(path)-1 {
+			squashed = path[:len(squashed)+1]
+			remain := path[len(squashed):]
+			if remain[0] == '|' {
+				return squashed, remain[1:], true
+			}
+		}
+		return
+	}
+	for i := 0; i < len(path); i++ {
+		if path[i] == '\\' {
+			i++
+		} else if path[i] == '.' {
+			if i == len(path)-1 {
+				return
+			}
+			if path[i+1] == '#' {
+				i += 2
+				if i == len(path) {
+					return
+				}
+				if path[i] == '[' || path[i] == '(' {
+					var start, end byte
+					if path[i] == '[' {
+						start, end = '[', ']'
+					} else {
+						start, end = '(', ')'
+					}
+					// inside selector, balance brackets
+					i++
+					depth := 1
+					for ; i < len(path); i++ {
+						if path[i] == '\\' {
+							i++
+						} else if path[i] == start {
+							depth++
+						} else if path[i] == end {
+							depth--
+							if depth == 0 {
+								break
+							}
+						} else if path[i] == '"' {
+							// inside selector string, balance quotes
+							i++
+							for ; i < len(path); i++ {
+								if path[i] == '\\' {
+									i++
+								} else if path[i] == '"' {
+									break
+								}
+							}
+						}
+					}
+				}
+			}
+		} else if path[i] == '|' {
+			return path[:i], path[i+1:], true
+		}
+	}
+	return
+}
+
 // parseString parses a string enclosed in double quotes from a JSON-encoded input string, handling escape sequences.
 // It starts from a given index `i` and extracts the next JSON string, taking care of any escape sequences like `\"`, `\\`, etc.
 //
@@ -2001,109 +2188,6 @@ func parseNumeric(json string, i int) (int, string) {
 	return i, json[s:]
 }
 
-// parseJSONLiteral parses a literal value (e.g., "true", "false", or "null") from a JSON-encoded input string,
-// starting from a given index `i` and extracting the literal value up to a non-alphabetic character or JSON delimiter.
-//
-// Parameters:
-//   - `json`: A JSON string that may contain literal values (such as "true", "false", or "null").
-//   - `i`: The index in the `json` string to begin parsing from. The function expects this to point to the first character of the literal.
-//
-// Returns:
-//   - `i`: The index immediately following the last character of the parsed literal value, or the point where parsing ends if no valid literal is found.
-//   - `raw`: The substring of `json` that represents the literal value (e.g., "true", "false", "null").
-//
-// Example Usage:
-//
-//	json := "true"
-//	i, raw := parseJSONLiteral(json, 0)
-//	// raw: "true" (the parsed literal value)
-//	// i: the index after the last character of the literal (4)
-//
-//	json = "false"
-//	i, raw = parseJSONLiteral(json, 0)
-//	// raw: "false" (the parsed literal value)
-//	// i: the index after the last character of the literal (5)
-//
-//	json = "null"
-//	i, raw = parseJSONLiteral(json, 0)
-//	// raw: "null" (the parsed literal value)
-//	// i: the index after the last character of the literal (4)
-//
-// Details:
-//   - The function begins parsing from the given index `i` and continues until it encounters a character that is not part of a valid literal (i.e., characters outside the range of 'a' to 'z').
-//   - It handles JSON literal values like "true", "false", and "null" by checking for consecutive alphabetic characters.
-//   - The function stops parsing as soon as it encounters a non-alphabetic character such as whitespace, a comma, or a closing JSON delimiter (`}` or `]`), which indicates the end of the literal value in the JSON structure.
-//   - The function returns the parsed literal string along with the index that follows the literal's last character.
-func parseJSONLiteral(json string, i int) (int, string) {
-	if unify4g.IsEmpty(json) || i < 0 {
-		return i, json
-	}
-	var s = i
-	i++
-	for ; i < len(json); i++ {
-		if json[i] < 'a' || json[i] > 'z' {
-			return i, json[s:i]
-		}
-	}
-	return i, json[s:]
-}
-
-// isModifierOrJsonStart checks whether the first character of the input string `s` is a special character
-// (such as '@', '[', or '{') that might indicate a modifier or a JSON structure in the context of processing.
-//
-// The function performs the following checks:
-//   - If the first character is '@', it further inspects if the following characters indicate a modifier.
-//   - If the first character is '[' or '{', it returns `true`, indicating a potential JSON array or object.
-//   - The function will return `false` for any other characters or if modifiers are disabled.
-//
-// Parameters:
-//   - `s`: A string to be checked, which can be a part of a JSON structure or an identifier with a modifier.
-//
-// Returns:
-//   - `bool`: `true` if the first character is '@' followed by a modifier, or if the first character is '[' or '{'.
-//     `false` otherwise.
-//
-// Example Usage:
-//
-//	s1 := "@modifier|value"
-//	isModifierOrJsonStart(s1)
-//	// Returns: true (because it starts with '@' and is followed by a modifier)
-//
-//	s2 := "[1, 2, 3]"
-//	isModifierOrJsonStart(s2)
-//	// Returns: true (because it starts with '[')
-//
-//	s3 := "{ \"key\": \"value\" }"
-//	isModifierOrJsonStart(s3)
-//	// Returns: true (because it starts with '{')
-//
-//	s4 := "normalString"
-//	isModifierOrJsonStart(s4)
-//	// Returns: false (no '@', '[', or '{')
-//
-// Details:
-//   - The function first checks if modifiers are disabled (by `DisableModifiers` flag). If they are, it returns `false` immediately.
-//   - If the string starts with '@', it scans for a potential modifier by checking if there is a '.' or '|' after it,
-//     and verifies whether the modifier exists in the `modifiers` map.
-//   - If the string starts with '[' or '{', it immediately returns `true`, as those characters typically indicate the start of a JSON array or object.
-func isModifierOrJsonStart(s string) bool {
-	if DisableModifiers {
-		return false
-	}
-	c := s[0]
-	if c == '@' {
-		i := 1
-		for ; i < len(s); i++ {
-			if s[i] == '.' || s[i] == '|' || s[i] == ':' {
-				break
-			}
-		}
-		_, ok := modifiers[s[1:i]]
-		return ok
-	}
-	return c == '[' || c == '{'
-}
-
 // parsePathWithModifiers parses a given path string, extracting different components such as parts, pipes, paths, and wildcards.
 // It identifies special characters ('.', '|', '*', '?', '\\') in the path and processes them accordingly. The function
 // breaks the string into a part and further splits it into pipes or paths, marking certain flags when necessary.
@@ -2216,6 +2300,53 @@ func parsePathWithModifiers(path string) (r wildcard) {
 	}
 	r.Part = path
 	return
+}
+
+// parseJSONLiteral parses a literal value (e.g., "true", "false", or "null") from a JSON-encoded input string,
+// starting from a given index `i` and extracting the literal value up to a non-alphabetic character or JSON delimiter.
+//
+// Parameters:
+//   - `json`: A JSON string that may contain literal values (such as "true", "false", or "null").
+//   - `i`: The index in the `json` string to begin parsing from. The function expects this to point to the first character of the literal.
+//
+// Returns:
+//   - `i`: The index immediately following the last character of the parsed literal value, or the point where parsing ends if no valid literal is found.
+//   - `raw`: The substring of `json` that represents the literal value (e.g., "true", "false", "null").
+//
+// Example Usage:
+//
+//	json := "true"
+//	i, raw := parseJSONLiteral(json, 0)
+//	// raw: "true" (the parsed literal value)
+//	// i: the index after the last character of the literal (4)
+//
+//	json = "false"
+//	i, raw = parseJSONLiteral(json, 0)
+//	// raw: "false" (the parsed literal value)
+//	// i: the index after the last character of the literal (5)
+//
+//	json = "null"
+//	i, raw = parseJSONLiteral(json, 0)
+//	// raw: "null" (the parsed literal value)
+//	// i: the index after the last character of the literal (4)
+//
+// Details:
+//   - The function begins parsing from the given index `i` and continues until it encounters a character that is not part of a valid literal (i.e., characters outside the range of 'a' to 'z').
+//   - It handles JSON literal values like "true", "false", and "null" by checking for consecutive alphabetic characters.
+//   - The function stops parsing as soon as it encounters a non-alphabetic character such as whitespace, a comma, or a closing JSON delimiter (`}` or `]`), which indicates the end of the literal value in the JSON structure.
+//   - The function returns the parsed literal string along with the index that follows the literal's last character.
+func parseJSONLiteral(json string, i int) (int, string) {
+	if unify4g.IsEmpty(json) || i < 0 {
+		return i, json
+	}
+	var s = i
+	i++
+	for ; i < len(json); i++ {
+		if json[i] < 'a' || json[i] > 'z' {
+			return i, json[s:i]
+		}
+	}
+	return i, json[s:]
 }
 
 // parseJSONSquash processes a JSON string starting from a given index `i`, squashing (flattening) any nested JSON structures
@@ -2405,29 +2536,7 @@ func parseJSONAny(json string, i int, hit bool) (int, Context, bool) {
 	return i, ctx, false
 }
 
-// matchSafely checks if a string matches a pattern with a complexity limit to
-// avoid excessive computational cost, such as those from ReDos (Regular Expression Denial of Service) attacks.
-//
-// This function utilizes the `MatchLimit` function from `unify4g` to perform the matching, enforcing a maximum
-// complexity limit of 10,000. The function aims to prevent situations where matching could lead to long or
-// excessive computation, particularly when dealing with user-controlled input.
-//
-// Parameters:
-//   - `str`: The string to match against the pattern.
-//   - `pattern`: The pattern string to match, which may include wildcards or other special characters.
-//
-// Returns:
-//   - `bool`: `true` if the `str` matches the `pattern` within the set complexity limit; otherwise `false`.
-//
-// Example:
-//
-//	result := matchSafely("hello", "h*o") // Returns `true` if the pattern matches the string within the complexity limit.
-func matchSafely(str, pattern string) bool {
-	matched, _ := unify4g.MatchLimit(str, pattern, 10000)
-	return matched
-}
-
-// parseJsonObject parses a JSON object structure from a given JSON string, extracting key-value pairs based on a specified path.
+// parseJSONObject parses a JSON object structure from a given JSON string, extracting key-value pairs based on a specified path.
 //
 // The function processes a JSON object (denoted by curly braces '{' and '}') and looks for matching keys. It handles both
 // simple key-value pairs and nested structures (objects or arrays) within the object. If the path to a key contains wildcards
@@ -2449,7 +2558,7 @@ func matchSafely(str, pattern string) bool {
 // Example Usage:
 //
 //	json := `{"name": "John", "age": 30, "address": {"city": "New York"}}`
-//	i, found := parseJsonObject(c, 0, "name")
+//	i, found := parseJSONObject(c, 0, "name")
 //	// found: true (if the "name" key was found in the JSON object)
 //
 // Details:
@@ -2468,7 +2577,7 @@ func matchSafely(str, pattern string) bool {
 // Key functions used:
 //   - `parsePathWithModifiers`: Extracts and processes the path to identify the key and modifiers.
 //   - `matchSafely`: Performs the safe matching of the key using a wildcard pattern, avoiding excessive complexity.
-func parseJsonObject(c *parser, i int, path string) (int, bool) {
+func parseJSONObject(c *parser, i int, path string) (int, bool) {
 	var _match, keyEsc, escVal, ok, hit bool
 	var key, val string
 	pathModifiers := parsePathWithModifiers(path)
@@ -2564,7 +2673,7 @@ func parseJsonObject(c *parser, i int, path string) (int, bool) {
 				}
 			case '{':
 				if _match && !hit {
-					i, hit = parseJsonObject(c, i+1, pathModifiers.Path)
+					i, hit = parseJSONObject(c, i+1, pathModifiers.Path)
 					if hit {
 						return i, true
 					}
@@ -2889,115 +2998,6 @@ func analyzePath(path string) (r deeper) {
 	return
 }
 
-// splitPathPipe splits a given path into two parts around the first unescaped '|' character.
-// It also handles nested structures and ensures correct parsing even when special characters
-// (e.g., braces, brackets, or quotes) are present.
-//
-// Parameters:
-//   - `path`: A string representing the input path that may contain nested objects, arrays, or a pipe character.
-//
-// Returns:
-//   - `left`: The part of the string before the first unescaped '|' character.
-//   - `right`: The part of the string after the first unescaped '|' character.
-//   - `ok`: A boolean indicating whether a valid split was found.
-//
-// Details:
-//   - If the path contains a '|' that is part of a nested structure or escaped, the function skips over it.
-//   - If the path starts with '{', the function uses the `squash` function to handle nested structures,
-//     ensuring correct splitting of the path while preserving JSON-like formats.
-//
-// Notes:
-//   - The function supports nested structures, including JSON-like objects and arrays (`{}`, `[]`), as well as
-//     selector expressions (e.g., `#[...]` or `#(...)`).
-//   - The function carefully skips escaped characters (e.g., `\|` or `\"`) and ensures that string literals
-//     enclosed in quotes are handled properly without premature termination.
-//   - It stops and splits the path at the first valid unescaped '|' encountered, returning the left and right parts.
-//
-// Example Usage:
-//
-//	For Input: `path1|path2`
-//	   Returns: `left="path1"`, `right="path2"`, `ok=true`
-//
-//	For Input: `{nested|structure}|path2`
-//	   Returns: `left="{nested|structure}"`, `right="path2"`, `ok=true`
-//
-//	For Input: `path_without_pipe`
-//	   Returns: `left=""`, `right=""`, `ok=false`
-func splitPathPipe(path string) (left, right string, ok bool) {
-	var possible bool
-	for i := 0; i < len(path); i++ {
-		if path[i] == '|' {
-			possible = true
-			break
-		}
-	}
-	if !possible {
-		return
-	}
-	if len(path) > 0 && path[0] == '{' {
-		squashed := squash(path[1:])
-		if len(squashed) < len(path)-1 {
-			squashed = path[:len(squashed)+1]
-			remain := path[len(squashed):]
-			if remain[0] == '|' {
-				return squashed, remain[1:], true
-			}
-		}
-		return
-	}
-	for i := 0; i < len(path); i++ {
-		if path[i] == '\\' {
-			i++
-		} else if path[i] == '.' {
-			if i == len(path)-1 {
-				return
-			}
-			if path[i+1] == '#' {
-				i += 2
-				if i == len(path) {
-					return
-				}
-				if path[i] == '[' || path[i] == '(' {
-					var start, end byte
-					if path[i] == '[' {
-						start, end = '[', ']'
-					} else {
-						start, end = '(', ')'
-					}
-					// inside selector, balance brackets
-					i++
-					depth := 1
-					for ; i < len(path); i++ {
-						if path[i] == '\\' {
-							i++
-						} else if path[i] == start {
-							depth++
-						} else if path[i] == end {
-							depth--
-							if depth == 0 {
-								break
-							}
-						} else if path[i] == '"' {
-							// inside selector string, balance quotes
-							i++
-							for ; i < len(path); i++ {
-								if path[i] == '\\' {
-									i++
-								} else if path[i] == '"' {
-									break
-								}
-							}
-						}
-					}
-				}
-			}
-		} else if path[i] == '|' {
-			return path[:i], path[i+1:], true
-		}
-	}
-	return
-}
-
 // analyzeArray processes and evaluates the path in the context of an array, checking
 // for matches and executing queries on elements within the array. It is responsible
 // for handling nested structures and queries, as well as determining if the analysis
@@ -3170,7 +3170,7 @@ func analyzeArray(c *parser, i int, path string) (int, bool) {
 				}
 			case '{':
 				if _match && !hit {
-					i, hit = parseJsonObject(c, i+1, analysis.Path)
+					i, hit = parseJSONObject(c, i+1, analysis.Path)
 					if hit {
 						if analysis.ALogOk {
 							break

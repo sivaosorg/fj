@@ -326,7 +326,7 @@ func TestHexToRune(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			result := hexToRune(tt.input)
+			result := hex2Rune(tt.input)
 			if result != tt.expected {
 				t.Errorf("hexToRune(%s) = %c; want %c", tt.input, result, tt.expected)
 			}
