@@ -299,7 +299,7 @@ func (t Context) ForEach(iterator func(key, value Context) bool) {
 			break
 		}
 		s := i
-		i, value, ok = parseAny(json, i, true)
+		i, value, ok = parseJSONAny(json, i, true)
 		if !ok {
 			return
 		}
@@ -713,7 +713,7 @@ func ForEachLine(json string, iterator func(line Context) bool) {
 	var res Context
 	var i int
 	for {
-		i, res, _ = parseAny(json, i, true)
+		i, res, _ = parseJSONAny(json, i, true)
 		if !res.Exists() {
 			break
 		}
@@ -911,7 +911,7 @@ func Get(json, path string) Context {
 		res.index = 0
 		return res
 	}
-	calcSubstringIndex(json, c)
+	calcSubstring(json, c)
 	return c.value
 }
 
@@ -989,84 +989,6 @@ func (t Context) Less(token Context, caseSensitive bool) bool {
 		return t.numeric < token.numeric
 	}
 	return t.unprocessed < token.unprocessed
-}
-
-// parseAny parses the next value from a json string.
-// A Result is returned when the hit param is set.
-// The return values are (i int, res Result, ok bool)
-func parseAny(json string, i int, hit bool) (int, Context, bool) {
-	var res Context
-	var val string
-	for ; i < len(json); i++ {
-		if json[i] == '{' || json[i] == '[' {
-			i, val = parseSquashJson(json, i)
-			if hit {
-				res.unprocessed = val
-				res.kind = JSON
-			}
-			var tmp parser
-			tmp.value = res
-			calcSubstringIndex(json, &tmp)
-			return i, tmp.value, true
-		}
-		if json[i] <= ' ' {
-			continue
-		}
-		var num bool
-		switch json[i] {
-		case '"':
-			i++
-			var escVal bool
-			var ok bool
-			i, val, escVal, ok = parseString(json, i)
-			if !ok {
-				return i, res, false
-			}
-			if hit {
-				res.kind = String
-				res.unprocessed = val
-				if escVal {
-					res.strings = unescape(val[1 : len(val)-1])
-				} else {
-					res.strings = val[1 : len(val)-1]
-				}
-			}
-			return i, res, true
-		case 'n':
-			if i+1 < len(json) && json[i+1] != 'u' {
-				num = true
-				break
-			}
-			fallthrough
-		case 't', 'f':
-			vc := json[i]
-			i, val = parseJsonLiteral(json, i)
-			if hit {
-				res.unprocessed = val
-				switch vc {
-				case 't':
-					res.kind = True
-				case 'f':
-					res.kind = False
-				}
-				return i, res, true
-			}
-		case '+', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-			'i', 'I', 'N':
-			num = true
-		}
-		if num {
-			i, val = parseNumeric(json, i)
-			if hit {
-				res.unprocessed = val
-				res.kind = Number
-				res.numeric, _ = strconv.ParseFloat(val, 64)
-			}
-			return i, res, true
-		}
-
-	}
-	return i, res, false
 }
 
 // GetMany searches json for the multiple paths.

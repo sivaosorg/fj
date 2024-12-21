@@ -268,7 +268,7 @@ func getBytes(json []byte, path string) Context {
 	return result
 }
 
-// calcSubstringIndex calculates and assigns the starting index of the `unprocessed` field in the `value`
+// calcSubstring calculates and assigns the starting index of the `unprocessed` field in the `value`
 // field of the `parser` struct relative to the `json` string.
 //
 // Parameters:
@@ -291,9 +291,9 @@ func getBytes(json []byte, path string) Context {
 //	json := `{"key": "value"}`
 //	value := Context{unprocessed: `"value"`}
 //	c := &parser{json: json, value: value}
-//	calcSubstringIndex(json, c)
+//	calcSubstring(json, c)
 //	fmt.Println(c.value.index) // Outputs the starting position of `"value"` in the JSON string.
-func calcSubstringIndex(json string, c *parser) {
+func calcSubstring(json string, c *parser) {
 	if len(c.value.unprocessed) > 0 && !c.calc {
 		jsonHeader := *(*stringHeader)(unsafe.Pointer(&json))
 		unprocessedHeader := *(*stringHeader)(unsafe.Pointer(&(c.value.unprocessed)))
@@ -1628,7 +1628,7 @@ func parseStaticValue(path string) (pathStatic, result string, ok bool) {
 		switch name[0] {
 		case '{', '[', '"', '+', '-', '0', '1', '2', '3', '4', '5', '6', '7',
 			'8', '9':
-			_, result = parseSquashJson(name, 0)
+			_, result = parseJSONSquash(name, 0)
 			pathStatic = name[len(result):]
 			return pathStatic, result, true
 		}
@@ -2001,7 +2001,7 @@ func parseNumeric(json string, i int) (int, string) {
 	return i, json[s:]
 }
 
-// parseJsonLiteral parses a literal value (e.g., "true", "false", or "null") from a JSON-encoded input string,
+// parseJSONLiteral parses a literal value (e.g., "true", "false", or "null") from a JSON-encoded input string,
 // starting from a given index `i` and extracting the literal value up to a non-alphabetic character or JSON delimiter.
 //
 // Parameters:
@@ -2015,17 +2015,17 @@ func parseNumeric(json string, i int) (int, string) {
 // Example Usage:
 //
 //	json := "true"
-//	i, raw := parseJsonLiteral(json, 0)
+//	i, raw := parseJSONLiteral(json, 0)
 //	// raw: "true" (the parsed literal value)
 //	// i: the index after the last character of the literal (4)
 //
 //	json = "false"
-//	i, raw = parseJsonLiteral(json, 0)
+//	i, raw = parseJSONLiteral(json, 0)
 //	// raw: "false" (the parsed literal value)
 //	// i: the index after the last character of the literal (5)
 //
 //	json = "null"
-//	i, raw = parseJsonLiteral(json, 0)
+//	i, raw = parseJSONLiteral(json, 0)
 //	// raw: "null" (the parsed literal value)
 //	// i: the index after the last character of the literal (4)
 //
@@ -2034,7 +2034,7 @@ func parseNumeric(json string, i int) (int, string) {
 //   - It handles JSON literal values like "true", "false", and "null" by checking for consecutive alphabetic characters.
 //   - The function stops parsing as soon as it encounters a non-alphabetic character such as whitespace, a comma, or a closing JSON delimiter (`}` or `]`), which indicates the end of the literal value in the JSON structure.
 //   - The function returns the parsed literal string along with the index that follows the literal's last character.
-func parseJsonLiteral(json string, i int) (int, string) {
+func parseJSONLiteral(json string, i int) (int, string) {
 	if unify4g.IsEmpty(json) || i < 0 {
 		return i, json
 	}
@@ -2218,7 +2218,7 @@ func parsePathWithModifiers(path string) (r wildcard) {
 	return
 }
 
-// parseSquashJson processes a JSON string starting from a given index `i`, squashing (flattening) any nested JSON structures
+// parseJSONSquash processes a JSON string starting from a given index `i`, squashing (flattening) any nested JSON structures
 // (such as arrays, objects, or even parentheses) into a single value. The function handles strings, nested objects,
 // arrays, and parentheses while ignoring the nested structures themselves, only returning the top-level JSON structure
 // from the starting point.
@@ -2237,7 +2237,7 @@ func parsePathWithModifiers(path string) (r wildcard) {
 // Example Usage:
 //
 //	json := "[{ \"key\": \"value\" }, { \"nested\": [1, 2, 3] }]"
-//	i, result := parseSquashJson(json, 0)
+//	i, result := parseJSONSquash(json, 0)
 //	// result: "{ \"key\": \"value\" }, { \"nested\": [1, 2, 3] }" (flattened to top-level content)
 //	// i: the index after the closing ']' of the outer array
 //
@@ -2249,7 +2249,7 @@ func parsePathWithModifiers(path string) (r wildcard) {
 //   - If a string is encountered (enclosed in double quotes), it processes the string contents carefully, respecting escape sequences.
 //   - The function ensures that nested structures (arrays, objects, or parentheses) are ignored, effectively "squashing" the
 //     content into the outermost structure, while the depth ensures that only the highest-level structure is returned.
-func parseSquashJson(json string, i int) (int, string) {
+func parseJSONSquash(json string, i int) (int, string) {
 	if unify4g.IsEmpty(json) || i < 0 {
 		return i, json
 	}
@@ -2295,6 +2295,114 @@ func parseSquashJson(json string, i int) (int, string) {
 		}
 	}
 	return i, json[s:]
+}
+
+// parseJSONAny parses the next JSON value from a given JSON string starting at the specified index `i`.
+// The function identifies and processes a variety of JSON value types including objects, arrays, strings, literals (true, false, null),
+// and numeric values. The result of parsing is returned as a `Context` containing relevant information about the parsed value.
+//
+// Parameters:
+//   - `json`: A string representing the JSON data to be parsed. This string can include objects, arrays, strings, literals, and numbers.
+//   - `i`: The starting index in the `json` string where parsing should begin. The function will parse the value starting at this index.
+//   - `hit`: A boolean flag indicating whether to capture the parsed result into the `Context` object. If true, the context will be populated with the parsed value.
+//
+// Returns:
+//   - `i`: The updated index after parsing the JSON value. This is the index immediately after the parsed value.
+//   - `ctx`: A `Context` object containing information about the parsed value, including the type (`kind`), the raw unprocessed string (`unprocessed`),
+//     and for strings or numbers, the parsed value (e.g., `strings` for strings, `numeric` for numbers).
+//   - `ok`: A boolean indicating whether the parsing was successful. If the function successfully identifies a JSON value, it returns true; otherwise, false.
+//
+// Example Usage:
+//
+//	json := `{"key": "value", "age": 25}`
+//	i := 0
+//	hit := true
+//	i, ctx, ok := parseJSONAny(json, i, hit)
+//	// i: the index after parsing the first JSON value (e.g., after the closing quote of "value").
+//	// ctx: contains the parsed context information (e.g., for strings, the kind would be String, unprocessed would be the raw value, etc.)
+//	// ok: true if the value was successfully parsed.
+//
+// Details:
+//   - The function processes various JSON types, including objects, arrays, strings, literals (true, false, null), and numeric values.
+//   - It recognizes objects (`{}`), arrays (`[]`), and string literals (`""`), and calls the appropriate helper functions for each type.
+//   - When parsing a string, it handles escape sequences, and when parsing numeric values, it checks for valid numbers (including integers, floats, and special numeric literals like `NaN`).
+//   - For literals like `true`, `false`, and `null`, the function parses the exact keywords and stores them in the `Context` object as `True`, `False`, or `Null` respectively.
+//
+// The function ensures flexibility by checking each character in the JSON string and delegating to specialized functions for handling different value types.
+// If no valid JSON value is found at the given position, it returns false.
+func parseJSONAny(json string, i int, hit bool) (int, Context, bool) {
+	var ctx Context
+	var val string
+	for ; i < len(json); i++ {
+		if json[i] == '{' || json[i] == '[' {
+			i, val = parseJSONSquash(json, i)
+			if hit {
+				ctx.unprocessed = val
+				ctx.kind = JSON
+			}
+			var tmp parser
+			tmp.value = ctx
+			calcSubstring(json, &tmp)
+			return i, tmp.value, true
+		}
+		if json[i] <= ' ' {
+			continue
+		}
+		var num bool
+		switch json[i] {
+		case '"':
+			i++
+			var escVal bool
+			var ok bool
+			i, val, escVal, ok = parseString(json, i)
+			if !ok {
+				return i, ctx, false
+			}
+			if hit {
+				ctx.kind = String
+				ctx.unprocessed = val
+				if escVal {
+					ctx.strings = unescape(val[1 : len(val)-1])
+				} else {
+					ctx.strings = val[1 : len(val)-1]
+				}
+			}
+			return i, ctx, true
+		case 'n':
+			if i+1 < len(json) && json[i+1] != 'u' {
+				num = true
+				break
+			}
+			fallthrough
+		case 't', 'f':
+			vc := json[i]
+			i, val = parseJSONLiteral(json, i)
+			if hit {
+				ctx.unprocessed = val
+				switch vc {
+				case 't':
+					ctx.kind = True
+				case 'f':
+					ctx.kind = False
+				}
+				return i, ctx, true
+			}
+		case '+', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+			'i', 'I', 'N':
+			num = true
+		}
+		if num {
+			i, val = parseNumeric(json, i)
+			if hit {
+				ctx.unprocessed = val
+				ctx.kind = Number
+				ctx.numeric, _ = strconv.ParseFloat(val, 64)
+			}
+			return i, ctx, true
+		}
+
+	}
+	return i, ctx, false
 }
 
 // matchSafely checks if a string matches a pattern with a complexity limit to
@@ -2461,7 +2569,7 @@ func parseJsonObject(c *parser, i int, path string) (int, bool) {
 						return i, true
 					}
 				} else {
-					i, val = parseSquashJson(c.json, i)
+					i, val = parseJSONSquash(c.json, i)
 					if hit {
 						c.value.unprocessed = val
 						c.value.kind = JSON
@@ -2475,7 +2583,7 @@ func parseJsonObject(c *parser, i int, path string) (int, bool) {
 						return i, true
 					}
 				} else {
-					i, val = parseSquashJson(c.json, i)
+					i, val = parseJSONSquash(c.json, i)
 					if hit {
 						c.value.unprocessed = val
 						c.value.kind = JSON
@@ -2490,7 +2598,7 @@ func parseJsonObject(c *parser, i int, path string) (int, bool) {
 				fallthrough
 			case 't', 'f':
 				vc := c.json[i]
-				i, val = parseJsonLiteral(c.json, i)
+				i, val = parseJSONLiteral(c.json, i)
 				if hit {
 					c.value.unprocessed = val
 					switch vc {
@@ -2965,7 +3073,7 @@ func analyzeArray(c *parser, i int, path string) (int, bool) {
 		}
 		var tmp parser
 		tmp.value = eVal
-		calcSubstringIndex(c.json, &tmp)
+		calcSubstring(c.json, &tmp)
 		parentIndex := tmp.value.index
 		var res Context
 		if eVal.kind == JSON {
@@ -3070,7 +3178,7 @@ func analyzeArray(c *parser, i int, path string) (int, bool) {
 						return i, true
 					}
 				} else {
-					i, val = parseSquashJson(c.json, i)
+					i, val = parseJSONSquash(c.json, i)
 					if analysis.query.On {
 						if executeQuery(Context{unprocessed: val, kind: JSON}) {
 							return i, true
@@ -3094,7 +3202,7 @@ func analyzeArray(c *parser, i int, path string) (int, bool) {
 						return i, true
 					}
 				} else {
-					i, val = parseSquashJson(c.json, i)
+					i, val = parseJSONSquash(c.json, i)
 					if analysis.query.On {
 						if executeQuery(Context{unprocessed: val, kind: JSON}) {
 							return i, true
@@ -3116,7 +3224,7 @@ func analyzeArray(c *parser, i int, path string) (int, bool) {
 				fallthrough
 			case 't', 'f':
 				vc := c.json[i]
-				i, val = parseJsonLiteral(c.json, i)
+				i, val = parseJSONLiteral(c.json, i)
 				if analysis.query.On {
 					var cVal Context
 					cVal.unprocessed = val
@@ -3168,7 +3276,7 @@ func analyzeArray(c *parser, i int, path string) (int, bool) {
 								break
 							}
 							if idx < len(c.json) && c.json[idx] != ']' {
-								_, res, ok := parseAny(c.json, idx, true)
+								_, res, ok := parseJSONAny(c.json, idx, true)
 								if ok {
 									res := res.Get(analysis.ALogKey)
 									if res.Exists() {

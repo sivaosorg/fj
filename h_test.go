@@ -9,7 +9,7 @@ func TestCalcSubstringIndex(t *testing.T) {
 	json := `{"key": "value"}`
 	value := Context{unprocessed: `"value"`}
 	c := &parser{json: json, value: value}
-	calcSubstringIndex(json, c)
+	calcSubstring(json, c)
 	t.Log(c.value.index)
 }
 
