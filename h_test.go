@@ -496,3 +496,262 @@ func TestGetBytes(t *testing.T) {
 		})
 	}
 }
+
+func TestVerifyBoolTrue(t *testing.T) {
+	tests := []struct {
+		data     []byte
+		index    int
+		expected int
+		ok       bool
+	}{
+		// Test case 1: "true" is at the beginning of the string
+		{
+			data:     []byte("true and false"),
+			index:    0,
+			expected: 0,
+			ok:       false,
+		},
+		// Test case 2: "true" is at the middle of the string
+		{
+			data:     []byte("something true here"),
+			index:    10,
+			expected: 10,
+			ok:       false,
+		},
+		// Test case 3: "true" is at the end of the string
+		{
+			data:     []byte("just true"),
+			index:    5,
+			expected: 5,
+			ok:       false,
+		},
+		// Test case 4: No "true" in the string
+		{
+			data:     []byte("false and false"),
+			index:    0,
+			expected: 0,
+			ok:       false,
+		},
+		// Test case 5: "true" is at the start but at a higher index
+		{
+			data:     []byte("find true here"),
+			index:    5,
+			expected: 5,
+			ok:       false,
+		},
+		// Test case 6: Edge case, "true" at the very end of the slice
+		{
+			data:     []byte("some more text true"),
+			index:    15,
+			expected: 15,
+			ok:       false,
+		},
+		// Test case 7: "true" at the beginning, but with extra spaces
+		{
+			data:     []byte(" true"),
+			index:    0,
+			expected: 0,
+			ok:       false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(string(tt.data), func(t *testing.T) {
+			got, ok := verifyBoolTrue(tt.data, tt.index)
+			if got != tt.expected || ok != tt.ok {
+				t.Errorf("checkTrueAtIndex(%s, %d) = (%d, %v); want (%d, %v)", tt.data, tt.index, got, ok, tt.expected, tt.ok)
+			}
+		})
+	}
+}
+
+func TestVerifyBoolFalse(t *testing.T) {
+	tests := []struct {
+		name        string
+		data        []byte
+		index       int
+		expectedVal int
+		expectedOk  bool
+	}{
+		{
+			name:        "Valid 'false' at start",
+			data:        []byte("false something else"),
+			index:       0,
+			expectedVal: 0,
+			expectedOk:  false,
+		},
+		{
+			name:        "Valid 'false' in middle",
+			data:        []byte("this is false and true"),
+			index:       8,
+			expectedVal: 8,
+			expectedOk:  false,
+		},
+		{
+			name:        "Valid 'false' at end",
+			data:        []byte("this is something false"),
+			index:       19,
+			expectedVal: 23,
+			expectedOk:  true,
+		},
+		{
+			name:        "Invalid substring 'fals'",
+			data:        []byte("this is fals"),
+			index:       8,
+			expectedVal: 8,
+			expectedOk:  false,
+		},
+		{
+			name:        "Invalid start with 'falser'",
+			data:        []byte("this is falser"),
+			index:       8,
+			expectedVal: 8,
+			expectedOk:  false,
+		},
+		{
+			name:        "Empty input",
+			data:        []byte(""),
+			index:       0,
+			expectedVal: 0,
+			expectedOk:  false,
+		},
+		{
+			name:        "Index out of range",
+			data:        []byte("false"),
+			index:       6,
+			expectedVal: 6,
+			expectedOk:  false,
+		},
+		{
+			name:        "Not 'false' at index",
+			data:        []byte("this is true"),
+			index:       8,
+			expectedVal: 8,
+			expectedOk:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			val, ok := verifyBoolFalse(tt.data, tt.index)
+			if val != tt.expectedVal || ok != tt.expectedOk {
+				t.Errorf("verifyIndexFalse(%q, %d) = (%d, %v), want (%d, %v)",
+					tt.data, tt.index, val, ok, tt.expectedVal, tt.expectedOk)
+			}
+		})
+	}
+}
+
+func TestVerifyNullable(t *testing.T) {
+	tests := []struct {
+		name        string
+		data        []byte
+		index       int
+		expectedVal int
+		expectedOk  bool
+	}{
+		{
+			name:        "Valid null at start",
+			data:        []byte("null"),
+			index:       0,
+			expectedVal: 0,
+			expectedOk:  false,
+		},
+		{
+			name:        "Valid null in middle",
+			data:        []byte("value is null"),
+			index:       9,
+			expectedVal: 9,
+			expectedOk:  false,
+		},
+		{
+			name:        "Invalid null due to wrong characters",
+			data:        []byte("value is not null"),
+			index:       9,
+			expectedVal: 9,
+			expectedOk:  false,
+		},
+		{
+			name:        "Invalid null due to incomplete sequence",
+			data:        []byte("value is nu"),
+			index:       9,
+			expectedVal: 9,
+			expectedOk:  false,
+		},
+		{
+			name:        "Valid null at end of data",
+			data:        []byte("something null"),
+			index:       10,
+			expectedVal: 10,
+			expectedOk:  false,
+		},
+		{
+			name:        "Invalid null due to out of bounds",
+			data:        []byte("nu"),
+			index:       0,
+			expectedVal: 0,
+			expectedOk:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			val, ok := verifyNullable(tt.data, tt.index)
+			if val != tt.expectedVal || ok != tt.expectedOk {
+				t.Errorf("verifyNullable(%q, %d) = (%d, %v), expected (%d, %v)",
+					tt.data, tt.index, val, ok, tt.expectedVal, tt.expectedOk)
+			}
+		})
+	}
+}
+
+func TestVerifyNumeric(t *testing.T) {
+	tests := []struct {
+		data        []byte
+		startIdx    int
+		expectedIdx int
+		expectedOk  bool
+	}{
+		// Valid numbers
+		{[]byte("123"), 1, 3, true},
+		{[]byte("-123"), 1, 4, true},
+		{[]byte("0"), 1, 1, false},
+		{[]byte("-0"), 1, 2, true},
+		{[]byte("123.456"), 1, 7, true},
+		{[]byte("-123.456"), 1, 8, true},
+		{[]byte("123e10"), 1, 6, true},
+		{[]byte("123E10"), 1, 6, true},
+		{[]byte("123e+10"), 1, 7, true},
+		{[]byte("123e-10"), 1, 7, true},
+		{[]byte("-123e10"), 1, 7, true},
+		{[]byte("-123.45e+10"), 1, 11, true},
+		{[]byte("-123.45E-10"), 1, 11, true},
+
+		// Invalid numbers
+		{[]byte("abc"), 1, 0, true},
+		{[]byte("123abc"), 1, 3, true}, // Partial number
+		{[]byte("-"), 1, 1, false},
+		{[]byte("123."), 1, 4, false},
+		{[]byte(".123"), 1, 4, true},
+		{[]byte("e10"), 1, 3, true},
+		{[]byte("123e"), 1, 4, false},
+		{[]byte("123e+"), 1, 5, false},
+		{[]byte("123e-"), 1, 5, false},
+		{[]byte("-123e-"), 1, 6, false},
+		{[]byte(""), 1, 1, false},
+		{[]byte("1.2.3"), 1, 3, true}, // Stops at the second dot
+		{[]byte("-123."), 1, 5, false},
+		{[]byte("-123e"), 1, 5, false},
+		{[]byte("-123e+"), 1, 6, false},
+		{[]byte("123."), 1, 4, false},
+		{[]byte("-"), 1, 1, false},
+	}
+
+	for _, test := range tests {
+		val, ok := verifyNumeric(test.data, test.startIdx)
+		if val != test.expectedIdx || ok != test.expectedOk {
+			t.Errorf("verifyNumeric(%q, %d) = (%d, %t); want (%d, %t)",
+				test.data, test.startIdx, val, ok, test.expectedIdx, test.expectedOk)
+		}
+	}
+}

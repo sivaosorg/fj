@@ -9,6 +9,42 @@ import (
 	"github.com/sivaosorg/unify4g"
 )
 
+// EscapeUnsafeChars processes a string `component` to escape characters that are not considered safe
+// according to the `isSafeKeyChar` function. It inserts a backslash (`\`) before each unsafe
+// character, ensuring that the resulting string contains only safe characters.
+//
+// Parameters:
+//   - `component`: A string that may contain unsafe characters that need to be escaped.
+//
+// Returns:
+//   - A new string with unsafe characters escaped by prefixing them with a backslash (`\`).
+//
+// Notes:
+//   - The function iterates through the input string and checks each character using the
+//     `isSafeKeyChar` function. When it encounters an unsafe character, it escapes it with a backslash.
+//   - Once an unsafe character is found, the function adds a backslash before each subsequent unsafe character
+//     and continues until the end of the string.
+//
+// Example:
+//
+//	component := "key-with$pecial*chars"
+//	escaped := EscapeUnsafeChars(component) // escaped: "key-with\$pecial\*chars"
+func EscapeUnsafeChars(component string) string {
+	for i := 0; i < len(component); i++ {
+		if !isSafeKeyChar(component[i]) {
+			noneComponent := []byte(component[:i])
+			for ; i < len(component); i++ {
+				if !isSafeKeyChar(component[i]) {
+					noneComponent = append(noneComponent, '\\')
+				}
+				noneComponent = append(noneComponent, component[i])
+			}
+			return string(noneComponent)
+		}
+	}
+	return component
+}
+
 func (c Context) Kind() Type {
 	return c.kind
 }
@@ -2170,241 +2206,20 @@ func validateAny(data []byte, i int) (val int, ok bool) {
 		case ' ', '\t', '\n', '\r':
 			continue
 		case '{':
-			return validateObject(data, i+1)
+			return verifyObject(data, i+1)
 		case '[':
-			return validateArray(data, i+1)
+			return verifyArray(data, i+1)
 		case '"':
-			return validateString(data, i+1)
+			return verifyString(data, i+1)
 		case '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-			return validateNumeric(data, i+1)
+			return verifyNumeric(data, i+1)
 		case 't':
-			return validateTrue(data, i+1)
+			return verifyBoolTrue(data, i+1)
 		case 'f':
-			return validateFalse(data, i+1)
+			return verifyBoolFalse(data, i+1)
 		case 'n':
-			return validateNull(data, i+1)
+			return verifyNullable(data, i+1)
 		}
-	}
-	return i, false
-}
-func validateObject(data []byte, i int) (val int, ok bool) {
-	for ; i < len(data); i++ {
-		switch data[i] {
-		default:
-			return i, false
-		case ' ', '\t', '\n', '\r':
-			continue
-		case '}':
-			return i + 1, true
-		case '"':
-		key:
-			if i, ok = validateString(data, i+1); !ok {
-				return i, false
-			}
-			if i, ok = validateColon(data, i); !ok {
-				return i, false
-			}
-			if i, ok = validateAny(data, i); !ok {
-				return i, false
-			}
-			if i, ok = validateComma(data, i, '}'); !ok {
-				return i, false
-			}
-			if data[i] == '}' {
-				return i + 1, true
-			}
-			i++
-			for ; i < len(data); i++ {
-				switch data[i] {
-				default:
-					return i, false
-				case ' ', '\t', '\n', '\r':
-					continue
-				case '"':
-					goto key
-				}
-			}
-			return i, false
-		}
-	}
-	return i, false
-}
-func validateColon(data []byte, i int) (val int, ok bool) {
-	for ; i < len(data); i++ {
-		switch data[i] {
-		default:
-			return i, false
-		case ' ', '\t', '\n', '\r':
-			continue
-		case ':':
-			return i + 1, true
-		}
-	}
-	return i, false
-}
-func validateComma(data []byte, i int, end byte) (val int, ok bool) {
-	for ; i < len(data); i++ {
-		switch data[i] {
-		default:
-			return i, false
-		case ' ', '\t', '\n', '\r':
-			continue
-		case ',':
-			return i, true
-		case end:
-			return i, true
-		}
-	}
-	return i, false
-}
-func validateArray(data []byte, i int) (val int, ok bool) {
-	for ; i < len(data); i++ {
-		switch data[i] {
-		default:
-			for ; i < len(data); i++ {
-				if i, ok = validateAny(data, i); !ok {
-					return i, false
-				}
-				if i, ok = validateComma(data, i, ']'); !ok {
-					return i, false
-				}
-				if data[i] == ']' {
-					return i + 1, true
-				}
-			}
-		case ' ', '\t', '\n', '\r':
-			continue
-		case ']':
-			return i + 1, true
-		}
-	}
-	return i, false
-}
-func validateString(data []byte, i int) (val int, ok bool) {
-	for ; i < len(data); i++ {
-		if data[i] < ' ' {
-			return i, false
-		} else if data[i] == '\\' {
-			i++
-			if i == len(data) {
-				return i, false
-			}
-			switch data[i] {
-			default:
-				return i, false
-			case '"', '\\', '/', 'b', 'f', 'n', 'r', 't':
-			case 'u':
-				for j := 0; j < 4; j++ {
-					i++
-					if i >= len(data) {
-						return i, false
-					}
-					if !((data[i] >= '0' && data[i] <= '9') ||
-						(data[i] >= 'a' && data[i] <= 'f') ||
-						(data[i] >= 'A' && data[i] <= 'F')) {
-						return i, false
-					}
-				}
-			}
-		} else if data[i] == '"' {
-			return i + 1, true
-		}
-	}
-	return i, false
-}
-func validateNumeric(data []byte, i int) (val int, ok bool) {
-	i--
-	// sign
-	if data[i] == '-' {
-		i++
-		if i == len(data) {
-			return i, false
-		}
-		if data[i] < '0' || data[i] > '9' {
-			return i, false
-		}
-	}
-	// int
-	if i == len(data) {
-		return i, false
-	}
-	if data[i] == '0' {
-		i++
-	} else {
-		for ; i < len(data); i++ {
-			if data[i] >= '0' && data[i] <= '9' {
-				continue
-			}
-			break
-		}
-	}
-	// frac
-	if i == len(data) {
-		return i, true
-	}
-	if data[i] == '.' {
-		i++
-		if i == len(data) {
-			return i, false
-		}
-		if data[i] < '0' || data[i] > '9' {
-			return i, false
-		}
-		i++
-		for ; i < len(data); i++ {
-			if data[i] >= '0' && data[i] <= '9' {
-				continue
-			}
-			break
-		}
-	}
-	// exp
-	if i == len(data) {
-		return i, true
-	}
-	if data[i] == 'e' || data[i] == 'E' {
-		i++
-		if i == len(data) {
-			return i, false
-		}
-		if data[i] == '+' || data[i] == '-' {
-			i++
-		}
-		if i == len(data) {
-			return i, false
-		}
-		if data[i] < '0' || data[i] > '9' {
-			return i, false
-		}
-		i++
-		for ; i < len(data); i++ {
-			if data[i] >= '0' && data[i] <= '9' {
-				continue
-			}
-			break
-		}
-	}
-	return i, true
-}
-
-func validateTrue(data []byte, i int) (outi int, ok bool) {
-	if i+3 <= len(data) && data[i] == 'r' && data[i+1] == 'u' &&
-		data[i+2] == 'e' {
-		return i + 3, true
-	}
-	return i, false
-}
-func validateFalse(data []byte, i int) (val int, ok bool) {
-	if i+4 <= len(data) && data[i] == 'a' && data[i+1] == 'l' &&
-		data[i+2] == 's' && data[i+3] == 'e' {
-		return i + 4, true
-	}
-	return i, false
-}
-func validateNull(data []byte, i int) (val int, ok bool) {
-	if i+3 <= len(data) && data[i] == 'u' && data[i+1] == 'l' &&
-		data[i+2] == 'l' {
-		return i + 3, true
 	}
 	return i, false
 }

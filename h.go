@@ -7,42 +7,6 @@ import (
 	"unsafe"
 )
 
-// EscapeUnsafeChars processes a string `component` to escape characters that are not considered safe
-// according to the `isSafeKeyChar` function. It inserts a backslash (`\`) before each unsafe
-// character, ensuring that the resulting string contains only safe characters.
-//
-// Parameters:
-//   - `component`: A string that may contain unsafe characters that need to be escaped.
-//
-// Returns:
-//   - A new string with unsafe characters escaped by prefixing them with a backslash (`\`).
-//
-// Notes:
-//   - The function iterates through the input string and checks each character using the
-//     `isSafeKeyChar` function. When it encounters an unsafe character, it escapes it with a backslash.
-//   - Once an unsafe character is found, the function adds a backslash before each subsequent unsafe character
-//     and continues until the end of the string.
-//
-// Example:
-//
-//	component := "key-with$pecial*chars"
-//	escaped := EscapeUnsafeChars(component) // escaped: "key-with\$pecial\*chars"
-func EscapeUnsafeChars(component string) string {
-	for i := 0; i < len(component); i++ {
-		if !isSafeKeyChar(component[i]) {
-			noneComponent := []byte(component[:i])
-			for ; i < len(component); i++ {
-				if !isSafeKeyChar(component[i]) {
-					noneComponent = append(noneComponent, '\\')
-				}
-				noneComponent = append(noneComponent, component[i])
-			}
-			return string(noneComponent)
-		}
-	}
-	return component
-}
-
 // getNumeric extracts the numeric portion of a JSON-encoded string and converts it to a float.
 //
 // This function processes a JSON-encoded string to extract a numeric value
@@ -720,4 +684,493 @@ func lessInsensitive(a, b string) bool {
 		}
 	}
 	return len(a) < len(b)
+}
+
+// verifyBoolTrue checks if the given byte slice starting at index i represents the string "true".
+// It returns the next index after "true" and true if the sequence matches, otherwise it returns the current index and false.
+//
+// Parameters:
+//   - data: A byte slice containing the data to validate.
+//   - i: The index in the byte slice to start checking from.
+//
+// Returns:
+//   - value: The index immediately after the "true" string if it matches, or the current index if it doesn't.
+//   - ok: A boolean indicating whether the "true" string was found starting at index i.
+//
+// Notes:
+//   - The function checks if the characters at positions i, i+1, and i+2 correspond to the letters 't', 'r', and 'u'.
+//     If the substring matches the word "true", it returns the index after the "true" string and true.
+//   - If the substring does not match "true", it returns the current index i and false.
+//
+// Example Usage:
+//
+//	data := []byte("this is true")
+//	i := 10
+//	value, ok := verifyBoolTrue(data, i)
+//	// value: 13 (the index after the word "true")
+//	// ok: true (because "true" was found starting at index 10)
+func verifyBoolTrue(data []byte, i int) (val int, ok bool) {
+	if i+3 <= len(data) && data[i] == 'r' && data[i+1] == 'u' &&
+		data[i+2] == 'e' {
+		return i + 3, true
+	}
+	return i, false
+}
+
+// verifyBoolFalse checks if the given byte slice starting at index i represents the string "false".
+// It returns the next index after "false" and true if the sequence matches, otherwise it returns the current index and false.
+//
+// Parameters:
+//   - data: A byte slice containing the data to validate.
+//   - i: The index in the byte slice to start checking from.
+//
+// Returns:
+//   - val: The index immediately after the "false" string if it matches, or the current index if it doesn't.
+//   - ok: A boolean indicating whether the "false" string was found starting at index i.
+//
+// Notes:
+//   - The function checks if the characters at positions i, i+1, i+2, and i+3 correspond to the letters 'f', 'a', 'l', and 's', respectively.
+//     If the substring matches the word "false", it returns the index after the "false" string and true.
+//   - If the substring does not match "false", it returns the current index i and false.
+//
+// Example Usage:
+//
+//	data := []byte("this is false")
+//	i := 8
+//	val, ok := verifyBoolFalse(data, i)
+//	// val: 13 (the index after the word "false")
+//	// ok: true (because "false" was found starting at index 8)
+func verifyBoolFalse(data []byte, i int) (val int, ok bool) {
+	if i+4 <= len(data) && data[i] == 'a' && data[i+1] == 'l' &&
+		data[i+2] == 's' && data[i+3] == 'e' {
+		return i + 4, true
+	}
+	return i, false
+}
+
+// verifyNullable checks if the given byte slice starting at index i represents the string "null".
+// It returns the next index after "null" and true if the sequence matches, otherwise it returns the current index and false.
+//
+// Parameters:
+//   - data: A byte slice containing the data to validate.
+//   - i: The index in the byte slice to start checking from.
+//
+// Returns:
+//   - val: The index immediately after the "null" string if it matches, or the current index if it doesn't.
+//   - ok: A boolean indicating whether the "null" string was found starting at index i.
+//
+// Notes:
+//   - The function checks if the characters at positions i, i+1, and i+2 correspond to the letters 'n', 'u', and 'l', respectively.
+//     If the substring matches the word "null", it returns the index after the "null" string and true.
+//   - If the substring does not match "null", it returns the current index i and false.
+//
+// Example Usage:
+//
+//	data := []byte("value is null")
+//	i := 9
+//	val, ok := verifyNullable(data, i)
+//	// val: 13 (the index after the word "null")
+//	// ok: true (because "null" was found starting at index 9)
+func verifyNullable(data []byte, i int) (val int, ok bool) {
+	if i+3 <= len(data) && data[i] == 'u' && data[i+1] == 'l' &&
+		data[i+2] == 'l' {
+		return i + 3, true
+	}
+	return i, false
+}
+
+// verifyNumeric validates whether the byte slice starting at index i represents a valid numeric value.
+// It supports integer, floating-point, and exponential number formats as per JSON specifications.
+//
+// Parameters:
+//   - data: A byte slice containing the input to validate.
+//   - i: The starting index to check in the byte slice.
+//
+// Returns:
+//   - val: The index immediately after the numeric value if it is valid, or the current index if it isn't.
+//   - ok: A boolean indicating whether the input from index i represents a valid numeric value.
+//
+// Notes:
+//   - This function validates numbers following the JSON number format, which includes:
+//   - Optional sign ('-' for negative numbers).
+//   - Integer component (digits, starting with '0' or other digits).
+//   - Optional fractional part (a dot '.' followed by one or more digits).
+//   - Optional exponent part ('e' or 'E', optionally signed, followed by one or more digits).
+//   - The function iterates over the byte slice, checking each part of the number sequentially.
+//   - If the numeric value is valid, the function returns the index after the number and true.
+//     Otherwise, it returns the starting index and false.
+//
+// Example Usage:
+//
+//	data := []byte("-123.45e+6")
+//	i := 1 // Start after the '-' sign
+//	val, ok := verifyNumeric(data, i)
+//	// val: 10 (the index after the number)
+//	// ok: true (because "-123.45e+6" is a valid numeric value)
+//
+// Details:
+//
+//   - The function handles three major components of a number: sign, integer part, and optional components
+//     (fractional and exponential parts).
+//   - Each component is validated, and the function exits early with a false result if a part is invalid.
+func verifyNumeric(data []byte, i int) (val int, ok bool) {
+	// Check if i is within valid range
+	if i <= 0 || i >= len(data) {
+		return i, false
+	}
+	i--
+	// Check for a sign ('-') at the start of the number.
+	if data[i] == '-' {
+		i++
+		// A sign without any digits is invalid.
+		// The character after the sign must be a digit.
+		if i == len(data) || data[i] < '0' || data[i] > '9' {
+			return i, false
+		}
+	}
+	// Validate the integer part of the number.
+	if i == len(data) {
+		return i, false
+	}
+	if data[i] == '0' {
+		// A leading '0' is valid but must not be followed by other digits.
+		i++
+	} else {
+		// Consume digits in the integer part.
+		for ; i < len(data); i++ {
+			if data[i] >= '0' && data[i] <= '9' {
+				continue
+			}
+			break
+		}
+	}
+	// Validate the fractional part, if present.
+	if i == len(data) {
+		return i, true
+	}
+	if data[i] == '.' {
+		i++
+		// A dot without digits after it is invalid.
+		// The character after the dot must be a digit.
+		if i == len(data) || data[i] < '0' || data[i] > '9' {
+			return i, false
+		}
+		i++
+		// Consume digits in the fractional part.
+		for ; i < len(data); i++ {
+			if data[i] >= '0' && data[i] <= '9' {
+				continue
+			}
+			break
+		}
+	}
+	// Validate the exponential part, if present.
+	if i == len(data) {
+		return i, true
+	}
+	if data[i] == 'e' || data[i] == 'E' {
+		i++
+		if i == len(data) {
+			// An 'e' or 'E' without any exponent value is invalid.
+			return i, false
+		}
+		// Check for an optional sign in the exponent.
+		if data[i] == '+' || data[i] == '-' {
+			i++
+		}
+		// A sign without any digits in the exponent is invalid.
+		// The character after the exponent must be a digit.
+		if i == len(data) || data[i] < '0' || data[i] > '9' {
+			return i, false
+		}
+		i++
+		// Consume digits in the exponent part.
+		for ; i < len(data); i++ {
+			if data[i] >= '0' && data[i] <= '9' {
+				continue
+			}
+			break
+		}
+	}
+	return i, true
+}
+
+// verifyString validates whether the byte slice starting at index i represents a valid JSON string.
+// The function ensures the string adheres to the JSON string format, including proper escaping of special characters.
+//
+// Parameters:
+//   - data: A byte slice containing the input to validate.
+//   - i: The starting index to check in the byte slice.
+//
+// Returns:
+//   - val: The index immediately after the string if it is valid, or the current index if it isn't.
+//   - ok: A boolean indicating whether the input from index i represents a valid JSON string.
+//
+// Notes:
+//   - JSON strings must start and end with double quotes ('"').
+//   - The function handles escaped characters such as '\\', '\"', and unicode escapes (e.g., '\\u1234').
+//   - The function iterates over the byte slice, validating each character and ensuring proper escape sequences.
+//   - If the string is valid, the function returns the index after the closing double quote and true.
+//     Otherwise, it returns the current index and false.
+//
+// Example Usage:
+//
+//	data := []byte("\"Hello, \\\"world!\\\"\"")
+//	i := 0 // Start at the first character
+//	val, ok := verifyString(data, i)
+//	// val: 20 (the index after the string)
+//	// ok: true (because "\"Hello, \\\"world!\\\"\"" is a valid JSON string)
+//
+// Details:
+//   - The function iterates over the characters, checking for valid JSON string content.
+//   - It handles special escape sequences, ensuring their correctness.
+//   - Early exit occurs if any invalid sequence or character is detected.
+func verifyString(data []byte, i int) (val int, ok bool) {
+	for ; i < len(data); i++ {
+		if data[i] < ' ' {
+			return i, false
+		} else if data[i] == '\\' {
+			i++
+			if i == len(data) {
+				return i, false
+			}
+			switch data[i] {
+			default:
+				return i, false
+			case '"', '\\', '/', 'b', 'f', 'n', 'r', 't':
+			case 'u':
+				for j := 0; j < 4; j++ {
+					i++
+					if i >= len(data) {
+						return i, false
+					}
+					if !((data[i] >= '0' && data[i] <= '9') ||
+						(data[i] >= 'a' && data[i] <= 'f') ||
+						(data[i] >= 'A' && data[i] <= 'F')) {
+						return i, false
+					}
+				}
+			}
+		} else if data[i] == '"' {
+			return i + 1, true
+		}
+	}
+	return i, false
+}
+
+// verifyComma checks for the presence of a comma (',') or the specified end character in the given byte slice
+// starting at index i. It skips over any whitespace characters and ensures valid structure.
+//
+// Parameters:
+//   - data: A byte slice containing the input to validate.
+//   - i: The starting index to check in the byte slice.
+//   - end: The specific byte (character) to treat as a valid stopping point, in addition to a comma.
+//
+// Returns:
+//   - val: The index of the comma or end character if found, or the current index if invalid.
+//   - ok: A boolean indicating whether a valid comma or end character was found.
+//
+// Notes:
+//   - Whitespace characters (' ', '\t', '\n', '\r') are skipped during validation.
+//   - The function exits early with false if an invalid character is encountered before finding a comma or end character.
+//   - If the comma or end character is found, the function returns its index and true.
+//
+// Example Usage:
+//
+//	data := []byte(" , next")
+//	i := 0
+//	end := byte('n')
+//	val, ok := verifyComma(data, i, end)
+//	// val: 1 (the index of the comma)
+//	// ok: true (because a comma was found)
+//
+// Details:
+//   - Iterates over characters, skipping valid whitespace.
+//   - Checks for either a comma or the specified end character.
+//   - Returns false if an invalid character is encountered.
+func verifyComma(data []byte, i int, end byte) (val int, ok bool) {
+	for ; i < len(data); i++ {
+		switch data[i] {
+		default:
+			return i, false
+		case ' ', '\t', '\n', '\r':
+			continue
+		case ',':
+			return i, true
+		case end:
+			return i, true
+		}
+	}
+	return i, false
+}
+
+// verifyColon checks for the presence of a colon (':') in the given byte slice starting at index i.
+// It skips over any whitespace characters and ensures valid JSON structure.
+//
+// Parameters:
+//   - data: A byte slice containing the input to validate.
+//   - i: The starting index to check in the byte slice.
+//
+// Returns:
+//   - val: The index immediately after the colon if found, or the current index if invalid.
+//   - ok: A boolean indicating whether a valid colon was found.
+//
+// Notes:
+//   - Whitespace characters (' ', '\t', '\n', '\r') are skipped during validation.
+//   - The function exits early with false if an invalid character is encountered before finding the colon.
+//   - If the colon is found, the function returns the index after it and true.
+//
+// Example Usage:
+//
+//	data := []byte(" : value")
+//	i := 0
+//	val, ok := verifyColon(data, i)
+//	// val: 2 (the index after the colon)
+//	// ok: true (because a colon was found)
+//
+// Details:
+//   - Iterates over characters, skipping valid whitespace.
+//   - Checks for a colon and returns the next index upon finding it.
+//   - Returns false if an invalid character is encountered.
+func verifyColon(data []byte, i int) (val int, ok bool) {
+	for ; i < len(data); i++ {
+		switch data[i] {
+		default:
+			return i, false
+		case ' ', '\t', '\n', '\r':
+			continue
+		case ':':
+			return i + 1, true
+		}
+	}
+	return i, false
+}
+
+// verifyArray validates whether the byte slice starting at index i represents a valid JSON array.
+// It ensures that the array starts and ends with square brackets ('[' and ']') and contains valid JSON values.
+//
+// Parameters:
+//   - data: A byte slice containing the input to validate.
+//   - i: The starting index to check in the byte slice.
+//
+// Returns:
+//   - val: The index immediately after the valid array if found, or the current index if it isn't.
+//   - ok: A boolean indicating whether the input from index i represents a valid JSON array.
+//
+// Notes:
+//   - The function handles arrays that may contain:
+//   - Whitespace (skipped).
+//   - Comma-separated JSON values, validated using the `validateAny` function.
+//   - Empty arrays ([]).
+//   - The function ensures that the array ends with a closing square bracket (']').
+//
+// Example Usage:
+//
+//	data := []byte("[123, \"string\", false]")
+//	i := 0
+//	val, ok := verifyArray(data, i)
+//	// val: 21 (the index after the array)
+//	// ok: true (because the input is a valid JSON array)
+//
+// Details:
+//   - Skips leading whitespace.
+//   - Checks for an initial ']' to handle empty arrays.
+//   - Iteratively validates JSON values and ensures proper use of commas.
+//   - Returns false if an invalid character or structure is encountered.
+func verifyArray(data []byte, i int) (val int, ok bool) {
+	for ; i < len(data); i++ {
+		switch data[i] {
+		default:
+			for ; i < len(data); i++ {
+				if i, ok = validateAny(data, i); !ok {
+					return i, false
+				}
+				if i, ok = verifyComma(data, i, ']'); !ok {
+					return i, false
+				}
+				if data[i] == ']' {
+					return i + 1, true
+				}
+			}
+		case ' ', '\t', '\n', '\r':
+			continue
+		case ']':
+			return i + 1, true
+		}
+	}
+	return i, false
+}
+
+// verifyObject validates whether the byte slice starting at index i represents a valid JSON object.
+// It ensures that the object starts and ends with curly braces ('{' and '}') and contains valid key-value pairs.
+//
+// Parameters:
+//   - data: A byte slice containing the input to validate.
+//   - i: The starting index to check in the byte slice.
+//
+// Returns:
+//   - val: The index immediately after the valid object if found, or the current index if it isn't.
+//   - ok: A boolean indicating whether the input from index i represents a valid JSON object.
+//
+// Notes:
+//   - The function handles objects that may contain:
+//   - Whitespace (skipped).
+//   - Key-value pairs, where keys are JSON strings and values are validated using `validateAny`.
+//   - Empty objects ({}).
+//   - Ensures proper use of colons (:) and commas (,) in separating keys and values.
+//   - The function iteratively validates keys and values until the closing curly brace ('}') is found.
+//
+// Example Usage:
+//
+//	data := []byte(`{"key1": 123, "key2": "value"}`)
+//	i := 0
+//	val, ok := verifyObject(data, i)
+//	// val: 28 (the index after the object)
+//	// ok: true (because the input is a valid JSON object)
+//
+// Details:
+//   - Skips leading whitespace.
+//   - Validates the presence of keys (JSON strings) and their corresponding values.
+//   - Ensures that the structure adheres to JSON object syntax, returning false for any invalid structure.
+func verifyObject(data []byte, i int) (val int, ok bool) {
+	for ; i < len(data); i++ {
+		switch data[i] {
+		default:
+			return i, false
+		case ' ', '\t', '\n', '\r':
+			continue
+		case '}':
+			return i + 1, true
+		case '"':
+		key:
+			if i, ok = verifyString(data, i+1); !ok {
+				return i, false
+			}
+			if i, ok = verifyColon(data, i); !ok {
+				return i, false
+			}
+			if i, ok = validateAny(data, i); !ok {
+				return i, false
+			}
+			if i, ok = verifyComma(data, i, '}'); !ok {
+				return i, false
+			}
+			if data[i] == '}' {
+				return i + 1, true
+			}
+			i++
+			for ; i < len(data); i++ {
+				switch data[i] {
+				default:
+					return i, false
+				case ' ', '\t', '\n', '\r':
+					continue
+				case '"':
+					goto key
+				}
+			}
+			return i, false
+		}
+	}
+	return i, false
 }
