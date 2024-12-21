@@ -2455,3 +2455,129 @@ func parseJsonObject(c *parser, i int, path string) (int, bool) {
 	}
 	return i, false
 }
+
+// analyzeQuery parses a query string into its constituent parts and identifies its structure.
+// It is designed to handle queries that involve filtering or accessing nested structures,
+// particularly in JSON-like or similar data representations.
+//
+// Parameters:
+//   - query (string): The query string to parse. It must start with `#(` or `#[` to be valid.
+//     The query string may include paths, operators, and values, and can contain nested structures.
+//
+// Returns:
+//   - path (string): The portion of the query string representing the path to the field or property.
+//   - op (string): The operator used in the query (e.g., `==`, `!=`, `<`, `>`, etc.).
+//   - value (string): The value to compare against or use in the query.
+//   - remain (string): The remaining portion of the query after processing.
+//   - i (int): The index in the query string where parsing ended.
+//   - _vEsc (bool): Indicates whether the value part contains any escaped characters.
+//   - ok (bool): Indicates whether the parsing was successful or not.
+//
+// Example Usage:
+//
+//	For a query `#(first_name=="Aris").last`:
+//	  - path: "first_name"
+//	  - op: "=="
+//	  - value: "Aris"
+//	  - remain: ".last"
+//
+//	For a query `#(user_roles.#(=="admin")).privilege`:
+//	  - path: "user_roles.#(=="admin")"
+//	  - op: ""
+//	  - value: ""
+//	  - remain: ".privilege"
+//
+// Details:
+//   - The function starts by verifying the query's validity, ensuring it begins with `#(` or `#[`.
+//   - It processes the query character by character, accounting for nested structures, operators, and escaped characters.
+//   - The `path` is extracted from the portion of the query before the operator or value.
+//   - The `op` and `value` are identified and split if an operator is present.
+//   - Remaining characters in the query, such as `.last` in the example, are captured in `remain`.
+//
+// Notes:
+//   - The function supports a variety of operators (`==`, `!=`, `<`, `>`, etc.).
+//   - It handles nested brackets or parentheses and ensures balanced nesting.
+//   - Escaped characters (e.g., `\"`) within the query are processed correctly, with `_vEsc` indicating their presence.
+//   - If the query is invalid or incomplete, the function will return `ok` as `false`.
+//
+// Edge Cases:
+//   - Handles nested queries with multiple levels of depth.
+//   - Ensures proper handling of invalid or malformed queries by returning appropriate values.
+func analyzeQuery(query string) (
+	path, op, value, remain string, i int, _vEsc, ok bool,
+) {
+	if len(query) < 2 || query[0] != '#' ||
+		(query[1] != '(' && query[1] != '[') {
+		return "", "", "", "", i, false, false
+	}
+	i = 2
+	j := 0
+	depth := 1
+	for ; i < len(query); i++ {
+		if depth == 1 && j == 0 {
+			switch query[i] {
+			case '!', '=', '<', '>', '%':
+				j = i
+				continue
+			}
+		}
+		if query[i] == '\\' {
+			i++
+		} else if query[i] == '[' || query[i] == '(' {
+			depth++
+		} else if query[i] == ']' || query[i] == ')' {
+			depth--
+			if depth == 0 {
+				break
+			}
+		} else if query[i] == '"' {
+			i++
+			for ; i < len(query); i++ {
+				if query[i] == '\\' {
+					_vEsc = true
+					i++
+				} else if query[i] == '"' {
+					break
+				}
+			}
+		}
+	}
+	if depth > 0 {
+		return "", "", "", "", i, false, false
+	}
+	if j > 0 {
+		path = trim(query[2:j])
+		value = trim(query[j:i])
+		remain = query[i+1:]
+		var trail int
+		switch {
+		case len(value) == 1:
+			trail = 1
+		case value[0] == '!' && value[1] == '=':
+			trail = 2
+		case value[0] == '!' && value[1] == '%':
+			trail = 2
+		case value[0] == '<' && value[1] == '=':
+			trail = 2
+		case value[0] == '>' && value[1] == '=':
+			trail = 2
+		case value[0] == '=' && value[1] == '=':
+			value = value[1:]
+			trail = 1
+		case value[0] == '<':
+			trail = 1
+		case value[0] == '>':
+			trail = 1
+		case value[0] == '=':
+			trail = 1
+		case value[0] == '%':
+			trail = 1
+		}
+		op = value[:trail]
+		value = trim(value[trail:])
+	} else {
+		path = trim(query[2:i])
+		remain = query[i+1:]
+	}
+	return path, op, value, remain, i + 1, _vEsc, true
+}

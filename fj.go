@@ -594,7 +594,7 @@ func parseArrayPath(path string) (r deeper) {
 					// query
 					r.query.On = true
 					queryPath, op, value, _, fi, escVal, ok :=
-						parseQuery(path[i:])
+						analyzeQuery(path[i:])
 					if !ok {
 						// bad query, end now
 						break
@@ -622,111 +622,6 @@ func parseArrayPath(path string) (r deeper) {
 	r.Part = path
 	r.Path = ""
 	return
-}
-
-// splitQuery takes a query and splits it into three parts:
-//
-//	path, op, middle, and right.
-//
-// So for this query:
-//
-//	#(first_name=="Murphy").last
-//
-// Becomes
-//
-//	first_name   # path
-//	=="Murphy"   # middle
-//	.last        # right
-//
-// Or,
-//
-//	#(service_roles.#(=="one")).cap
-//
-// Becomes
-//
-//	service_roles.#(=="one")   # path
-//	                           # middle
-//	.cap                       # right
-func parseQuery(query string) (
-	path, op, value, remain string, i int, _vEsc, ok bool,
-) {
-	if len(query) < 2 || query[0] != '#' ||
-		(query[1] != '(' && query[1] != '[') {
-		return "", "", "", "", i, false, false
-	}
-	i = 2
-	j := 0 // start of value part
-	depth := 1
-	for ; i < len(query); i++ {
-		if depth == 1 && j == 0 {
-			switch query[i] {
-			case '!', '=', '<', '>', '%':
-				// start of the value part
-				j = i
-				continue
-			}
-		}
-		if query[i] == '\\' {
-			i++
-		} else if query[i] == '[' || query[i] == '(' {
-			depth++
-		} else if query[i] == ']' || query[i] == ')' {
-			depth--
-			if depth == 0 {
-				break
-			}
-		} else if query[i] == '"' {
-			// inside selector string, balance quotes
-			i++
-			for ; i < len(query); i++ {
-				if query[i] == '\\' {
-					_vEsc = true
-					i++
-				} else if query[i] == '"' {
-					break
-				}
-			}
-		}
-	}
-	if depth > 0 {
-		return "", "", "", "", i, false, false
-	}
-	if j > 0 {
-		path = trim(query[2:j])
-		value = trim(query[j:i])
-		remain = query[i+1:]
-		// parse the compare op from the value
-		var trail int
-		switch {
-		case len(value) == 1:
-			trail = 1
-		case value[0] == '!' && value[1] == '=':
-			trail = 2
-		case value[0] == '!' && value[1] == '%':
-			trail = 2
-		case value[0] == '<' && value[1] == '=':
-			trail = 2
-		case value[0] == '>' && value[1] == '=':
-			trail = 2
-		case value[0] == '=' && value[1] == '=':
-			value = value[1:]
-			trail = 1
-		case value[0] == '<':
-			trail = 1
-		case value[0] == '>':
-			trail = 1
-		case value[0] == '=':
-			trail = 1
-		case value[0] == '%':
-			trail = 1
-		}
-		op = value[:trail]
-		value = trim(value[trail:])
-	} else {
-		path = trim(query[2:i])
-		remain = query[i+1:]
-	}
-	return path, op, value, remain, i + 1, _vEsc, true
 }
 
 func ofFalse(t Context) bool {
