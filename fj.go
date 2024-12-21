@@ -812,7 +812,7 @@ func Get(json, path string) Context {
 			var cPath string
 			var cJson string
 			if path[0] == '@' && !DisableModifiers {
-				cPath, cJson, ok = execModifier(json, path)
+				cPath, cJson, ok = adjustModifier(json, path)
 			} else if path[0] == '!' {
 				cPath, cJson, ok = parseStaticValue(path)
 			}
@@ -1137,65 +1137,6 @@ func Valid(json string) bool {
 func ValidBytes(json []byte) bool {
 	_, ok := validatePayload(json, 0)
 	return ok
-}
-
-// execModifier parses the path to find a matching modifier function.
-// The input expects that the path already starts with a '@'
-func execModifier(json, path string) (pathOut, res string, ok bool) {
-	name := path[1:]
-	var hasArgs bool
-	for i := 1; i < len(path); i++ {
-		if path[i] == ':' {
-			pathOut = path[i+1:]
-			name = path[1:i]
-			hasArgs = len(pathOut) > 0
-			break
-		}
-		if path[i] == '|' {
-			pathOut = path[i:]
-			name = path[1:i]
-			break
-		}
-		if path[i] == '.' {
-			pathOut = path[i:]
-			name = path[1:i]
-			break
-		}
-	}
-	if fn, ok := modifiers[name]; ok {
-		var args string
-		if hasArgs {
-			var parsedArgs bool
-			switch pathOut[0] {
-			case '{', '[', '"':
-				// json arg
-				res := Parse(pathOut)
-				if res.Exists() {
-					args = squash(pathOut)
-					pathOut = pathOut[len(args):]
-					parsedArgs = true
-				}
-			}
-			if !parsedArgs {
-				// simple arg
-				i := 0
-				for ; i < len(pathOut); i++ {
-					if pathOut[i] == '|' {
-						break
-					}
-					switch pathOut[i] {
-					case '{', '[', '"', '(':
-						s := squash(pathOut[i:])
-						i += len(s) - 1
-					}
-				}
-				args = pathOut[:i]
-				pathOut = pathOut[i:]
-			}
-		}
-		return pathOut, fn(json, args), true
-	}
-	return pathOut, res, false
 }
 
 func init() {

@@ -3285,3 +3285,101 @@ func analyzeSubSelectors(path string) (selectors []subSelector, out string, ok b
 	}
 	return
 }
+
+// adjustModifier parses a given path to identify a modifier function and its associated arguments,
+// then applies the modifier to the provided JSON string based on the parsed path. This function expects
+// that the path starts with a '@', indicating the presence of a modifier. It identifies the modifier's
+// name, extracts any potential arguments, and returns the modified result along with the remaining path
+// after processing the modifier.
+//
+// Parameters:
+//   - json: A string containing the JSON data that the modifier will operate on.
+//   - path: A string representing the path, which includes a modifier prefixed by '@'. The path may
+//     contain an optional argument to be processed by the modifier.
+//
+// Returns:
+//   - pYield: The remaining portion of the path after parsing the modifier and its arguments.
+//   - result: The result obtained by applying the modifier to the JSON string, or an empty string
+//     if no valid modifier is found.
+//   - ok: A boolean indicating whether the modifier was successfully identified and applied. If true,
+//     the modifier was found and applied; if false, the modifier was not found.
+//
+// Example Usage:
+//
+//	json := `{"key": "value"}`
+//	path := "@modifierName:argument"
+//	pYield, result, ok := adjustModifier(json, path)
+//	// pYield: remaining path after the modifier
+//	// result: the modified JSON result based on the modifier applied
+//	// ok: true if the modifier was found and applied successfully
+//
+// Details:
+//   - The function first removes the '@' character from the beginning of the path and processes the
+//     remaining portion of the path to extract the modifier's name and its optional arguments.
+//   - The function handles various formats of arguments, including JSON-like objects, arrays, strings,
+//     and other specific cases based on the character delimiters such as '{', '[', '"', or '('.
+//   - If a valid modifier function is found in the `modifiers` map, it applies the function to the JSON
+//     string and returns the result along with the remaining path. If no valid modifier is found, it
+//     returns the original path and an empty result.
+func adjustModifier(json, path string) (pathYield, result string, ok bool) {
+	name := path[1:] // remove the '@' character and initialize the name to the remaining path.
+	var hasArgs bool
+	// iterate over the path to find the modifier name and any arguments.
+	for i := 1; i < len(path); i++ {
+		// check for argument delimiter (':'), process if found.
+		if path[i] == ':' {
+			pathYield = path[i+1:]
+			name = path[1:i]
+			hasArgs = len(pathYield) > 0
+			break
+		}
+		// check for pipe ('|'), dot ('.'), or other delimiters to separate the modifier name and arguments.
+		if path[i] == '|' {
+			pathYield = path[i:]
+			name = path[1:i]
+			break
+		}
+		if path[i] == '.' {
+			pathYield = path[i:]
+			name = path[1:i]
+			break
+		}
+	}
+	// check if the modifier exists in the modifiers map and apply it if found.
+	if fn, ok := modifiers[name]; ok {
+		var args string
+		if hasArgs { // if arguments are found, parse and handle them.
+			var parsedArgs bool
+			// process the arguments based on their type (e.g., JSON, string, etc.).
+			switch pathYield[0] {
+			case '{', '[', '"': // handle JSON-like arguments.
+				ctx := Parse(pathYield)
+				if ctx.Exists() {
+					args = squash(pathYield) // squash the JSON to remove nested structures.
+					pathYield = pathYield[len(args):]
+					parsedArgs = true
+				}
+			}
+			if !parsedArgs { // process arguments if not already parsed as JSON.
+				i := 0
+				// iterate through the arguments and process any nested structures or strings.
+				for ; i < len(pathYield); i++ {
+					if pathYield[i] == '|' {
+						break
+					}
+					switch pathYield[i] {
+					case '{', '[', '"', '(': // handle nested structures like arrays or objects.
+						s := squash(pathYield[i:])
+						i += len(s) - 1
+					}
+				}
+				args = pathYield[:i]      // extract the argument portion.
+				pathYield = pathYield[i:] // update the remaining path.
+			}
+		}
+		// apply the modifier function to the JSON data and return the result.
+		return pathYield, fn(json, args), true
+	}
+	// if no modifier is found, return the path and an empty result.
+	return pathYield, result, false
+}
