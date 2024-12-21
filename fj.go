@@ -729,292 +729,6 @@ func parseQuery(query string) (
 	return path, op, value, remain, i + 1, _vEsc, true
 }
 
-func parseObjectPath(path string) (r wildcard) {
-	for i := 0; i < len(path); i++ {
-		if path[i] == '|' {
-			r.Part = path[:i]
-			r.Pipe = path[i+1:]
-			r.Piped = true
-			return
-		}
-		if path[i] == '.' {
-			r.Part = path[:i]
-			if i < len(path)-1 && isModifierOrJsonStart(path[i+1:]) {
-				r.Pipe = path[i+1:]
-				r.Piped = true
-			} else {
-				r.Path = path[i+1:]
-				r.More = true
-			}
-			return
-		}
-		if path[i] == '*' || path[i] == '?' {
-			r.Wild = true
-			continue
-		}
-		if path[i] == '\\' {
-			// go into escape mode. this is a slower path that
-			// strips off the escape character from the part.
-			escapePart := []byte(path[:i])
-			i++
-			if i < len(path) {
-				escapePart = append(escapePart, path[i])
-				i++
-				for ; i < len(path); i++ {
-					if path[i] == '\\' {
-						i++
-						if i < len(path) {
-							escapePart = append(escapePart, path[i])
-						}
-						continue
-					} else if path[i] == '.' {
-						r.Part = string(escapePart)
-						if i < len(path)-1 && isModifierOrJsonStart(path[i+1:]) {
-							r.Pipe = path[i+1:]
-							r.Piped = true
-						} else {
-							r.Path = path[i+1:]
-							r.More = true
-						}
-						return
-					} else if path[i] == '|' {
-						r.Part = string(escapePart)
-						r.Pipe = path[i+1:]
-						r.Piped = true
-						return
-					} else if path[i] == '*' || path[i] == '?' {
-						r.Wild = true
-					}
-					escapePart = append(escapePart, path[i])
-				}
-			}
-			// append the last part
-			r.Part = string(escapePart)
-			return
-		}
-	}
-	r.Part = path
-	return
-}
-
-func parseSquash(json string, i int) (int, string) {
-	// expects that the lead character is a '[' or '{' or '('
-	// squash the value, ignoring all nested arrays and objects.
-	// the first '[' or '{' or '(' has already been read
-	s := i
-	i++
-	depth := 1
-	for ; i < len(json); i++ {
-		if json[i] >= '"' && json[i] <= '}' {
-			switch json[i] {
-			case '"':
-				i++
-				s2 := i
-				for ; i < len(json); i++ {
-					if json[i] > '\\' {
-						continue
-					}
-					if json[i] == '"' {
-						// look for an escaped slash
-						if json[i-1] == '\\' {
-							n := 0
-							for j := i - 2; j > s2-1; j-- {
-								if json[j] != '\\' {
-									break
-								}
-								n++
-							}
-							if n%2 == 0 {
-								continue
-							}
-						}
-						break
-					}
-				}
-			case '{', '[', '(':
-				depth++
-			case '}', ']', ')':
-				depth--
-				if depth == 0 {
-					i++
-					return i, json[s:i]
-				}
-			}
-		}
-	}
-	return i, json[s:]
-}
-
-func parseObject(c *parser, i int, path string) (int, bool) {
-	var _match, keyEsc, escVal, ok, hit bool
-	var key, val string
-	rp := parseObjectPath(path)
-	if !rp.More && rp.Piped {
-		c.pipe = rp.Pipe
-		c.piped = true
-	}
-	for i < len(c.json) {
-		for ; i < len(c.json); i++ {
-			if c.json[i] == '"' {
-				// parse_key_string
-				// this is slightly different from getting s string value
-				// because we don't need the outer quotes.
-				i++
-				var s = i
-				for ; i < len(c.json); i++ {
-					if c.json[i] > '\\' {
-						continue
-					}
-					if c.json[i] == '"' {
-						i, key, keyEsc, ok = i+1, c.json[s:i], false, true
-						goto parse_key_string_done
-					}
-					if c.json[i] == '\\' {
-						i++
-						for ; i < len(c.json); i++ {
-							if c.json[i] > '\\' {
-								continue
-							}
-							if c.json[i] == '"' {
-								// look for an escaped slash
-								if c.json[i-1] == '\\' {
-									n := 0
-									for j := i - 2; j > 0; j-- {
-										if c.json[j] != '\\' {
-											break
-										}
-										n++
-									}
-									if n%2 == 0 {
-										continue
-									}
-								}
-								i, key, keyEsc, ok = i+1, c.json[s:i], true, true
-								goto parse_key_string_done
-							}
-						}
-						break
-					}
-				}
-				key, keyEsc, ok = c.json[s:], false, false
-			parse_key_string_done:
-				break
-			}
-			if c.json[i] == '}' {
-				return i + 1, false
-			}
-		}
-		if !ok {
-			return i, false
-		}
-		if rp.Wild {
-			if keyEsc {
-				_match = matchLimit(unescape(key), rp.Part)
-			} else {
-				_match = matchLimit(key, rp.Part)
-			}
-		} else {
-			if keyEsc {
-				_match = rp.Part == unescape(key)
-			} else {
-				_match = rp.Part == key
-			}
-		}
-		hit = _match && !rp.More
-		for ; i < len(c.json); i++ {
-			var num bool
-			switch c.json[i] {
-			default:
-				continue
-			case '"':
-				i++
-				i, val, escVal, ok = parseString(c.json, i)
-				if !ok {
-					return i, false
-				}
-				if hit {
-					if escVal {
-						c.value.strings = unescape(val[1 : len(val)-1])
-					} else {
-						c.value.strings = val[1 : len(val)-1]
-					}
-					c.value.unprocessed = val
-					c.value.kind = String
-					return i, true
-				}
-			case '{':
-				if _match && !hit {
-					i, hit = parseObject(c, i+1, rp.Path)
-					if hit {
-						return i, true
-					}
-				} else {
-					i, val = parseSquash(c.json, i)
-					if hit {
-						c.value.unprocessed = val
-						c.value.kind = JSON
-						return i, true
-					}
-				}
-			case '[':
-				if _match && !hit {
-					i, hit = parseArray(c, i+1, rp.Path)
-					if hit {
-						return i, true
-					}
-				} else {
-					i, val = parseSquash(c.json, i)
-					if hit {
-						c.value.unprocessed = val
-						c.value.kind = JSON
-						return i, true
-					}
-				}
-			case 'n':
-				if i+1 < len(c.json) && c.json[i+1] != 'u' {
-					num = true
-					break
-				}
-				fallthrough
-			case 't', 'f':
-				vc := c.json[i]
-				i, val = parseJsonLiteral(c.json, i)
-				if hit {
-					c.value.unprocessed = val
-					switch vc {
-					case 't':
-						c.value.kind = True
-					case 'f':
-						c.value.kind = False
-					}
-					return i, true
-				}
-			case '+', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-				'i', 'I', 'N':
-				num = true
-			}
-			if num {
-				i, val = parseNumeric(c.json, i)
-				if hit {
-					c.value.unprocessed = val
-					c.value.kind = Number
-					c.value.numeric, _ = strconv.ParseFloat(val, 64)
-					return i, true
-				}
-			}
-			break
-		}
-	}
-	return i, false
-}
-
-// matchLimit will limit the complexity of the match operation to avoid ReDos
-// attacks from arbitrary inputs.
-func matchLimit(str, pattern string) bool {
-	matched, _ := unify4g.MatchLimit(str, pattern, 10000)
-	return matched
-}
-
 func ofFalse(t Context) bool {
 	switch t.kind {
 	case Null:
@@ -1111,9 +825,9 @@ func queryMatches(rp *deeper, value Context) bool {
 		case ">=":
 			return value.strings >= rpv
 		case "%":
-			return matchLimit(value.strings, rpv)
+			return matchSafely(value.strings, rpv)
 		case "!%":
-			return !matchLimit(value.strings, rpv)
+			return !matchSafely(value.strings, rpv)
 		}
 	case Number:
 		_rightVal, _ := strconv.ParseFloat(rpv, 64)
@@ -1283,7 +997,7 @@ func parseArray(c *parser, i int, path string) (int, bool) {
 				}
 			case '{':
 				if _match && !hit {
-					i, hit = parseObject(c, i+1, rp.Path)
+					i, hit = parseJsonObject(c, i+1, rp.Path)
 					if hit {
 						if rp.ALogOk {
 							break
@@ -1291,7 +1005,7 @@ func parseArray(c *parser, i int, path string) (int, bool) {
 						return i, true
 					}
 				} else {
-					i, val = parseSquash(c.json, i)
+					i, val = parseSquashJson(c.json, i)
 					if rp.query.On {
 						if procQuery(Context{unprocessed: val, kind: JSON}) {
 							return i, true
@@ -1315,7 +1029,7 @@ func parseArray(c *parser, i int, path string) (int, bool) {
 						return i, true
 					}
 				} else {
-					i, val = parseSquash(c.json, i)
+					i, val = parseSquashJson(c.json, i)
 					if rp.query.On {
 						if procQuery(Context{unprocessed: val, kind: JSON}) {
 							return i, true
@@ -1801,7 +1515,7 @@ func Get(json, path string) Context {
 		for ; i < len(c.json); i++ {
 			if c.json[i] == '{' {
 				i++
-				parseObject(c, i, path)
+				parseJsonObject(c, i, path)
 				break
 			}
 			if c.json[i] == '[' {
@@ -1904,7 +1618,7 @@ func parseAny(json string, i int, hit bool) (int, Context, bool) {
 	var val string
 	for ; i < len(json); i++ {
 		if json[i] == '{' || json[i] == '[' {
-			i, val = parseSquash(json, i)
+			i, val = parseSquashJson(json, i)
 			if hit {
 				res.unprocessed = val
 				res.kind = JSON

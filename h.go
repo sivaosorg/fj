@@ -1564,7 +1564,7 @@ func parseStaticValue(path string) (pathStatic, result string, ok bool) {
 		switch name[0] {
 		case '{', '[', '"', '+', '-', '0', '1', '2', '3', '4', '5', '6', '7',
 			'8', '9':
-			_, result = parseSquash(name, 0)
+			_, result = parseSquashJson(name, 0)
 			pathStatic = name[len(result):]
 			return pathStatic, result, true
 		}
@@ -2038,4 +2038,420 @@ func isModifierOrJsonStart(s string) bool {
 		return ok
 	}
 	return c == '[' || c == '{'
+}
+
+// parsePathWithModifiers parses a given path string, extracting different components such as parts, pipes, paths, and wildcards.
+// It identifies special characters ('.', '|', '*', '?', '\\') in the path and processes them accordingly. The function
+// breaks the string into a part and further splits it into pipes or paths, marking certain flags when necessary.
+// It also handles escaped characters by stripping escape sequences and processing them correctly.
+//
+// Parameters:
+//   - `path`: A string representing the path to be parsed. It can contain various special characters like
+//     dots ('.'), pipes ('|'), wildcards ('*', '?'), and escape sequences ('\\').
+//
+// Returns:
+//   - `r`: A `wildcard` struct containing the parsed components of the path. It will include:
+//   - `Part`: The part of the path before any special character or wildcard.
+//   - `Path`: The portion of the path after a dot ('.') if present.
+//   - `Pipe`: The portion of the path after a pipe ('|') if present.
+//   - `Piped`: A boolean flag indicating if a pipe ('|') was encountered.
+//   - `Wild`: A boolean flag indicating if a wildcard ('*' or '?') was encountered.
+//   - `More`: A boolean flag indicating if the path is further segmented by a dot ('.').
+//
+// Example Usage:
+//
+//	path1 := "field.subfield|anotherField"
+//	result := parsePathWithModifiers(path1)
+//	// result.Part: "field"
+//	// result.Path: "subfield"
+//	// result.Pipe: "anotherField"
+//	// result.Piped: true
+//
+//	path2 := "object.field"
+//	result = parsePathWithModifiers(path2)
+//	// result.Part: "object"
+//	// result.Path: "field"
+//	// result.More: true
+//
+//	path3 := "path\\.*.field"
+//	result = parsePathWithModifiers(path3)
+//	// result.Part: "path.*"
+//	// result.Wild: true
+//
+// Details:
+//   - The function scans through the path string character by character, processing the first encountered special
+//     character (either '.', '|', '*', '?', '\\') and extracting the relevant components.
+//   - If a '.' is encountered, the part before it is extracted as the `Part`, and the string following it is assigned
+//     to `Path`. If there are modifiers or JSON structure indicators (like '[' or '{'), the path is marked accordingly.
+//   - If a pipe ('|') is found, the `Part` is separated from the string after the pipe, and the `Piped` flag is set to true.
+//   - Wildcard characters ('*' or '?') are detected, and the `Wild` flag is set.
+//   - Escape sequences (indicated by '\\') are processed by appending the escaped character(s) and stripping the escape character.
+//   - If no special characters are found, the entire path is assigned to `Part`, and the function returns the parsed result.
+func parsePathWithModifiers(path string) (r wildcard) {
+	for i := 0; i < len(path); i++ {
+		if path[i] == '|' {
+			r.Part = path[:i]
+			r.Pipe = path[i+1:]
+			r.Piped = true
+			return
+		}
+		if path[i] == '.' {
+			r.Part = path[:i]
+			if i < len(path)-1 && isModifierOrJsonStart(path[i+1:]) {
+				r.Pipe = path[i+1:]
+				r.Piped = true
+			} else {
+				r.Path = path[i+1:]
+				r.More = true
+			}
+			return
+		}
+		if path[i] == '*' || path[i] == '?' {
+			r.Wild = true
+			continue
+		}
+		if path[i] == '\\' {
+			// go into escape mode
+			// a slower path that strips off the escape character from the part.
+			escapePart := []byte(path[:i])
+			i++
+			if i < len(path) {
+				escapePart = append(escapePart, path[i])
+				i++
+				for ; i < len(path); i++ {
+					if path[i] == '\\' {
+						i++
+						if i < len(path) {
+							escapePart = append(escapePart, path[i])
+						}
+						continue
+					} else if path[i] == '.' {
+						r.Part = string(escapePart)
+						if i < len(path)-1 && isModifierOrJsonStart(path[i+1:]) {
+							r.Pipe = path[i+1:]
+							r.Piped = true
+						} else {
+							r.Path = path[i+1:]
+							r.More = true
+						}
+						return
+					} else if path[i] == '|' {
+						r.Part = string(escapePart)
+						r.Pipe = path[i+1:]
+						r.Piped = true
+						return
+					} else if path[i] == '*' || path[i] == '?' {
+						r.Wild = true
+					}
+					escapePart = append(escapePart, path[i])
+				}
+			}
+			r.Part = string(escapePart)
+			return
+		}
+	}
+	r.Part = path
+	return
+}
+
+// parseSquashJson processes a JSON string starting from a given index `i`, squashing (flattening) any nested JSON structures
+// (such as arrays, objects, or even parentheses) into a single value. The function handles strings, nested objects,
+// arrays, and parentheses while ignoring the nested structures themselves, only returning the top-level JSON structure
+// from the starting point.
+//
+// Parameters:
+//   - `json`: A string representing the JSON data to be parsed. This string can include various JSON constructs like
+//     strings, objects, arrays, and nested structures within parentheses.
+//   - `i`: The index in the `json` string from which parsing should begin. The function assumes that the character
+//     at this index is the opening character of a JSON array ('['), object ('{'), or parentheses ('(').
+//
+// Returns:
+//   - `int`: The new index after the parsing of the JSON structure, which is after the closing bracket/parenthesis/brace.
+//   - `string`: A string containing the flattened JSON structure starting from the opening character and squashing all
+//     nested structures until the corresponding closing character is reached.
+//
+// Example Usage:
+//
+//	json := "[{ \"key\": \"value\" }, { \"nested\": [1, 2, 3] }]"
+//	i, result := parseSquashJson(json, 0)
+//	// result: "{ \"key\": \"value\" }, { \"nested\": [1, 2, 3] }" (flattened to top-level content)
+//	// i: the index after the closing ']' of the outer array
+//
+// Details:
+//   - The function expects that the character at index `i` is an opening character for an array, object, or parentheses,
+//     and it will proceed to skip over any nested structures of the same type (i.e., arrays, objects, or parentheses).
+//   - The depth of nesting is tracked, and whenever the function encounters a closing bracket (']'), brace ('}'), or parenthesis
+//     (')'), it checks if the depth has returned to 0 (indicating the end of the top-level structure).
+//   - If a string is encountered (enclosed in double quotes), it processes the string contents carefully, respecting escape sequences.
+//   - The function ensures that nested structures (arrays, objects, or parentheses) are ignored, effectively "squashing" the
+//     content into the outermost structure, while the depth ensures that only the highest-level structure is returned.
+func parseSquashJson(json string, i int) (int, string) {
+	if unify4g.IsEmpty(json) || i < 0 {
+		return i, json
+	}
+	s := i
+	i++
+	depth := 1
+	for ; i < len(json); i++ {
+		if json[i] >= '"' && json[i] <= '}' {
+			switch json[i] {
+			case '"':
+				i++
+				s2 := i
+				for ; i < len(json); i++ {
+					if json[i] > '\\' {
+						continue
+					}
+					if json[i] == '"' {
+						// look for an escaped slash
+						if json[i-1] == '\\' {
+							n := 0
+							for j := i - 2; j > s2-1; j-- {
+								if json[j] != '\\' {
+									break
+								}
+								n++
+							}
+							if n%2 == 0 {
+								continue
+							}
+						}
+						break
+					}
+				}
+			case '{', '[', '(':
+				depth++
+			case '}', ']', ')':
+				depth--
+				if depth == 0 {
+					i++
+					return i, json[s:i]
+				}
+			}
+		}
+	}
+	return i, json[s:]
+}
+
+// matchSafely checks if a string matches a pattern with a complexity limit to
+// avoid excessive computational cost, such as those from ReDos (Regular Expression Denial of Service) attacks.
+//
+// This function utilizes the `MatchLimit` function from `unify4g` to perform the matching, enforcing a maximum
+// complexity limit of 10,000. The function aims to prevent situations where matching could lead to long or
+// excessive computation, particularly when dealing with user-controlled input.
+//
+// Parameters:
+//   - `str`: The string to match against the pattern.
+//   - `pattern`: The pattern string to match, which may include wildcards or other special characters.
+//
+// Returns:
+//   - `bool`: `true` if the `str` matches the `pattern` within the set complexity limit; otherwise `false`.
+//
+// Example:
+//
+//	result := matchSafely("hello", "h*o") // Returns `true` if the pattern matches the string within the complexity limit.
+func matchSafely(str, pattern string) bool {
+	matched, _ := unify4g.MatchLimit(str, pattern, 10000)
+	return matched
+}
+
+// parseJsonObject parses a JSON object structure from a given JSON string, extracting key-value pairs based on a specified path.
+//
+// The function processes a JSON object (denoted by curly braces '{' and '}') and looks for matching keys. It handles both
+// simple key-value pairs and nested structures (objects or arrays) within the object. If the path to a key contains wildcards
+// or modifiers, the function matches the keys accordingly. It also processes escape sequences for both keys and values,
+// ensuring proper handling of special characters within JSON strings.
+//
+// Parameters:
+//   - `c`: A pointer to a `parser` object that holds the JSON string (`json`), and context information (`value`).
+//   - `i`: The current index in the JSON string from where the parsing should begin. This index should point to the
+//     opening curly brace '{' of the JSON object.
+//   - `path`: The string representing the path to be parsed. It may include modifiers or wildcards, guiding the matching
+//     of specific keys in the object.
+//
+// Returns:
+//   - `i` (int): The index in the JSON string after the parsing is completed. This index points to the character
+//     immediately after the parsed object.
+//   - `bool`: `true` if a match for the specified path was found, `false` if no match was found.
+//
+// Example Usage:
+//
+//	json := `{"name": "John", "age": 30, "address": {"city": "New York"}}`
+//	i, found := parseJsonObject(c, 0, "name")
+//	// found: true (if the "name" key was found in the JSON object)
+//
+// Details:
+//   - The function first searches for a key enclosed in double quotes ('"'). It handles both normal keys and escaped keys.
+//   - It then checks if the key matches the specified path, which may contain wildcards or exact matches.
+//   - If the key matches and there are no more modifiers in the path, the corresponding value is extracted and stored in the `parser` object.
+//   - If the key points to a nested object or array, the function recursively parses those structures to extract the required data.
+//   - The function handles various types of JSON values including strings, numbers, booleans, objects, and arrays.
+//   - The function also handles escape sequences within JSON strings and ensures that they are processed correctly.
+//
+// Notes:
+//   - The function makes use of the `parsePathWithModifiers` function to parse and process the path for matching keys.
+//   - If the path contains wildcards ('*' or '?'), the function uses `matchSafely` to ensure safe matching within a complexity limit.
+//   - If the key is matched, the function will return the parsed value. If no match is found, the parsing continues.
+//
+// Key functions used:
+//   - `parsePathWithModifiers`: Extracts and processes the path to identify the key and modifiers.
+//   - `matchSafely`: Performs the safe matching of the key using a wildcard pattern, avoiding excessive complexity.
+func parseJsonObject(c *parser, i int, path string) (int, bool) {
+	var _match, keyEsc, escVal, ok, hit bool
+	var key, val string
+	pathModifiers := parsePathWithModifiers(path)
+	if !pathModifiers.More && pathModifiers.Piped {
+		c.pipe = pathModifiers.Pipe
+		c.piped = true
+	}
+	for i < len(c.json) {
+		for ; i < len(c.json); i++ {
+			if c.json[i] == '"' {
+				i++
+				var s = i
+				for ; i < len(c.json); i++ {
+					if c.json[i] > '\\' {
+						continue
+					}
+					if c.json[i] == '"' {
+						i, key, keyEsc, ok = i+1, c.json[s:i], false, true
+						goto parse_key_completed
+					}
+					if c.json[i] == '\\' {
+						i++
+						for ; i < len(c.json); i++ {
+							if c.json[i] > '\\' {
+								continue
+							}
+							if c.json[i] == '"' {
+								// look for an escaped slash
+								if c.json[i-1] == '\\' {
+									n := 0
+									for j := i - 2; j > 0; j-- {
+										if c.json[j] != '\\' {
+											break
+										}
+										n++
+									}
+									if n%2 == 0 {
+										continue
+									}
+								}
+								i, key, keyEsc, ok = i+1, c.json[s:i], true, true
+								goto parse_key_completed
+							}
+						}
+						break
+					}
+				}
+				key, keyEsc, ok = c.json[s:], false, false
+			parse_key_completed:
+				break
+			}
+			if c.json[i] == '}' {
+				return i + 1, false
+			}
+		}
+		if !ok {
+			return i, false
+		}
+		if pathModifiers.Wild {
+			if keyEsc {
+				_match = matchSafely(unescape(key), pathModifiers.Part)
+			} else {
+				_match = matchSafely(key, pathModifiers.Part)
+			}
+		} else {
+			if keyEsc {
+				_match = pathModifiers.Part == unescape(key)
+			} else {
+				_match = pathModifiers.Part == key
+			}
+		}
+		hit = _match && !pathModifiers.More
+		for ; i < len(c.json); i++ {
+			var num bool
+			switch c.json[i] {
+			default:
+				continue
+			case '"':
+				i++
+				i, val, escVal, ok = parseString(c.json, i)
+				if !ok {
+					return i, false
+				}
+				if hit {
+					if escVal {
+						c.value.strings = unescape(val[1 : len(val)-1])
+					} else {
+						c.value.strings = val[1 : len(val)-1]
+					}
+					c.value.unprocessed = val
+					c.value.kind = String
+					return i, true
+				}
+			case '{':
+				if _match && !hit {
+					i, hit = parseJsonObject(c, i+1, pathModifiers.Path)
+					if hit {
+						return i, true
+					}
+				} else {
+					i, val = parseSquashJson(c.json, i)
+					if hit {
+						c.value.unprocessed = val
+						c.value.kind = JSON
+						return i, true
+					}
+				}
+			case '[':
+				if _match && !hit {
+					i, hit = parseArray(c, i+1, pathModifiers.Path)
+					if hit {
+						return i, true
+					}
+				} else {
+					i, val = parseSquashJson(c.json, i)
+					if hit {
+						c.value.unprocessed = val
+						c.value.kind = JSON
+						return i, true
+					}
+				}
+			case 'n':
+				if i+1 < len(c.json) && c.json[i+1] != 'u' {
+					num = true
+					break
+				}
+				fallthrough
+			case 't', 'f':
+				vc := c.json[i]
+				i, val = parseJsonLiteral(c.json, i)
+				if hit {
+					c.value.unprocessed = val
+					switch vc {
+					case 't':
+						c.value.kind = True
+					case 'f':
+						c.value.kind = False
+					}
+					return i, true
+				}
+			case '+', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+				'i', 'I', 'N':
+				num = true
+			}
+			if num {
+				i, val = parseNumeric(c.json, i)
+				if hit {
+					c.value.unprocessed = val
+					c.value.kind = Number
+					c.value.numeric, _ = strconv.ParseFloat(val, 64)
+					return i, true
+				}
+			}
+			break
+		}
+	}
+	return i, false
 }
