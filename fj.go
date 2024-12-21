@@ -418,7 +418,7 @@ func (t Context) arrayOrMap(vc byte, valueSize bool) (result tinyContext) {
 			value.strings, value.numeric = "", 0
 		case '"':
 			value.kind = String
-			value.unprocessed, value.strings = toString(json[i:])
+			value.unprocessed, value.strings = unescapeJsonEncoded(json[i:])
 			value.numeric = 0
 		}
 		value.index = i + t.index
@@ -504,7 +504,7 @@ func Parse(json string) Context {
 			value.unprocessed = lowerPrefix(json[i:])
 		case '"':
 			value.kind = String
-			value.unprocessed, value.strings = toString(json[i:])
+			value.unprocessed, value.strings = unescapeJsonEncoded(json[i:])
 		default:
 			return Context{}
 		}
@@ -520,50 +520,6 @@ func Parse(json string) Context {
 // If working with bytes, this method preferred over Parse(string(data))
 func ParseBytes(json []byte) Context {
 	return Parse(string(json))
-}
-
-func toString(json string) (raw string, str string) {
-	// expects that the lead character is a '"'
-	for i := 1; i < len(json); i++ {
-		if json[i] > '\\' {
-			continue
-		}
-		if json[i] == '"' {
-			return json[:i+1], json[1:i]
-		}
-		if json[i] == '\\' {
-			i++
-			for ; i < len(json); i++ {
-				if json[i] > '\\' {
-					continue
-				}
-				if json[i] == '"' {
-					// look for an escaped slash
-					if json[i-1] == '\\' {
-						n := 0
-						for j := i - 2; j > 0; j-- {
-							if json[j] != '\\' {
-								break
-							}
-							n++
-						}
-						if n%2 == 0 {
-							continue
-						}
-					}
-					return json[:i+1], unescape(json[1:i])
-				}
-			}
-			var ret string
-			if i+1 < len(json) {
-				ret = json[:i+1]
-			} else {
-				ret = json[:i]
-			}
-			return ret, unescape(json[1:i])
-		}
-	}
-	return json, json[1:]
 }
 
 // Exists returns true if value exists.
@@ -608,67 +564,6 @@ func (t Context) Value() interface{} {
 	}
 }
 
-func parseString(json string, i int) (int, string, bool, bool) {
-	var s = i
-	for ; i < len(json); i++ {
-		if json[i] > '\\' {
-			continue
-		}
-		if json[i] == '"' {
-			return i + 1, json[s-1 : i+1], false, true
-		}
-		if json[i] == '\\' {
-			i++
-			for ; i < len(json); i++ {
-				if json[i] > '\\' {
-					continue
-				}
-				if json[i] == '"' {
-					// look for an escaped slash
-					if json[i-1] == '\\' {
-						n := 0
-						for j := i - 2; j > 0; j-- {
-							if json[j] != '\\' {
-								break
-							}
-							n++
-						}
-						if n%2 == 0 {
-							continue
-						}
-					}
-					return i + 1, json[s-1 : i+1], true, true
-				}
-			}
-			break
-		}
-	}
-	return i, json[s-1:], false, false
-}
-
-func parseNumber(json string, i int) (int, string) {
-	var s = i
-	i++
-	for ; i < len(json); i++ {
-		if json[i] <= ' ' || json[i] == ',' || json[i] == ']' ||
-			json[i] == '}' {
-			return i, json[s:i]
-		}
-	}
-	return i, json[s:]
-}
-
-func parseLiteral(json string, i int) (int, string) {
-	var s = i
-	i++
-	for ; i < len(json); i++ {
-		if json[i] < 'a' || json[i] > 'z' {
-			return i, json[s:i]
-		}
-	}
-	return i, json[s:]
-}
-
 func parseArrayPath(path string) (r deeper) {
 	for i := 0; i < len(path); i++ {
 		if path[i] == '|' {
@@ -679,7 +574,7 @@ func parseArrayPath(path string) (r deeper) {
 		}
 		if path[i] == '.' {
 			r.Part = path[:i]
-			if !r.Arch && i < len(path)-1 && isDotPiperChar(path[i+1:]) {
+			if !r.Arch && i < len(path)-1 && isModifierOrJsonStart(path[i+1:]) {
 				r.Pipe = path[i+1:]
 				r.Piped = true
 			} else {
@@ -834,26 +729,6 @@ func parseQuery(query string) (
 	return path, op, value, remain, i + 1, _vEsc, true
 }
 
-// peek at the next byte and see if it's a '@', '[', or '{'.
-func isDotPiperChar(s string) bool {
-	if DisableModifiers {
-		return false
-	}
-	c := s[0]
-	if c == '@' {
-		// check that the next component is *not* a modifier.
-		i := 1
-		for ; i < len(s); i++ {
-			if s[i] == '.' || s[i] == '|' || s[i] == ':' {
-				break
-			}
-		}
-		_, ok := modifiers[s[1:i]]
-		return ok
-	}
-	return c == '[' || c == '{'
-}
-
 func parseObjectPath(path string) (r wildcard) {
 	for i := 0; i < len(path); i++ {
 		if path[i] == '|' {
@@ -864,7 +739,7 @@ func parseObjectPath(path string) (r wildcard) {
 		}
 		if path[i] == '.' {
 			r.Part = path[:i]
-			if i < len(path)-1 && isDotPiperChar(path[i+1:]) {
+			if i < len(path)-1 && isModifierOrJsonStart(path[i+1:]) {
 				r.Pipe = path[i+1:]
 				r.Piped = true
 			} else {
@@ -894,7 +769,7 @@ func parseObjectPath(path string) (r wildcard) {
 						continue
 					} else if path[i] == '.' {
 						r.Part = string(escapePart)
-						if i < len(path)-1 && isDotPiperChar(path[i+1:]) {
+						if i < len(path)-1 && isModifierOrJsonStart(path[i+1:]) {
 							r.Pipe = path[i+1:]
 							r.Piped = true
 						} else {
@@ -1103,7 +978,7 @@ func parseObject(c *parser, i int, path string) (int, bool) {
 				fallthrough
 			case 't', 'f':
 				vc := c.json[i]
-				i, val = parseLiteral(c.json, i)
+				i, val = parseJsonLiteral(c.json, i)
 				if hit {
 					c.value.unprocessed = val
 					switch vc {
@@ -1119,7 +994,7 @@ func parseObject(c *parser, i int, path string) (int, bool) {
 				num = true
 			}
 			if num {
-				i, val = parseNumber(c.json, i)
+				i, val = parseNumeric(c.json, i)
 				if hit {
 					c.value.unprocessed = val
 					c.value.kind = Number
@@ -1462,7 +1337,7 @@ func parseArray(c *parser, i int, path string) (int, bool) {
 				fallthrough
 			case 't', 'f':
 				vc := c.json[i]
-				i, val = parseLiteral(c.json, i)
+				i, val = parseJsonLiteral(c.json, i)
 				if rp.query.On {
 					var cVal Context
 					cVal.unprocessed = val
@@ -1565,7 +1440,7 @@ func parseArray(c *parser, i int, path string) (int, bool) {
 				return i + 1, false
 			}
 			if num {
-				i, val = parseNumber(c.json, i)
+				i, val = parseNumeric(c.json, i)
 				if rp.query.On {
 					var cVal Context
 					cVal.unprocessed = val
@@ -2070,7 +1945,7 @@ func parseAny(json string, i int, hit bool) (int, Context, bool) {
 			fallthrough
 		case 't', 'f':
 			vc := json[i]
-			i, val = parseLiteral(json, i)
+			i, val = parseJsonLiteral(json, i)
 			if hit {
 				res.unprocessed = val
 				switch vc {
@@ -2086,7 +1961,7 @@ func parseAny(json string, i int, hit bool) (int, Context, bool) {
 			num = true
 		}
 		if num {
-			i, val = parseNumber(json, i)
+			i, val = parseNumeric(json, i)
 			if hit {
 				res.unprocessed = val
 				res.kind = Number

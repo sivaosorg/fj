@@ -1733,3 +1733,309 @@ func stripNonWhitespace(s string) string {
 	}
 	return s
 }
+
+// unescapeJsonEncoded extracts a JSON-encoded string and returns both the full JSON string (with quotes) and the unescaped string content.
+// The function processes the input string to handle escaped characters and returns a clean, unescaped version of the string
+// as well as the portion of the JSON string that includes the enclosing quotes.
+//
+// Parameters:
+//   - `json`: A JSON-encoded string, which is expected to start and end with a double quote (").
+//     This string may contain escape sequences (e.g., `\"`, `\\`, `\n`, etc.) within the string value.
+//
+// Returns:
+//   - `raw`: The full JSON string including the enclosing quotes (e.g., `"[Hello]"`).
+//   - `unescaped`: The unescaped content of the string inside the quotes (e.g., `"Hello"` becomes `Hello` after unescaping).
+//
+// Example Usage:
+//
+//	input := "\"Hello\\nWorld\""
+//	raw, str := unescapeJsonEncoded(input)
+//	// raw: "\"Hello\\nWorld\"" (the full JSON string with quotes)
+//	// str: "Hello\nWorld" (the unescaped string content)
+//
+//	input := "\"This is a \\\"quoted\\\" word\""
+//	raw, str := unescapeJsonEncoded(input)
+//	// raw: "\"This is a \\\"quoted\\\" word\""
+//	// str: "This is a \"quoted\" word" (the unescaped string content)
+//
+// Details:
+//
+//   - The function processes the input string starting from the second character (ignoring the initial quote).
+//
+//   - It handles escape sequences inside the string, skipping over escaped quotes (`\"`) and other escape sequences.
+//
+//   - When a closing quote (`"`) is encountered, the function checks for the escape sequences to ensure the string is correctly unescaped.
+//
+//   - The function also checks if there are any escaped slashes (`\\`) and validates if they are part of an even or odd sequence.
+//     If an escaped slash is found, it is taken into account to avoid terminating the string early.
+//
+//   - If the string is well-formed, the function returns the entire JSON string with quotes (`raw`) and the unescaped string (`str`).
+//
+//   - If an unescaped string is not found or the JSON string doesn't match expected formats, the function returns the string as is.
+func unescapeJsonEncoded(json string) (raw string, unescaped string) {
+	for i := 1; i < len(json); i++ {
+		if json[i] > '\\' {
+			continue
+		}
+		if json[i] == '"' {
+			return json[:i+1], json[1:i]
+		}
+		if json[i] == '\\' {
+			i++
+			for ; i < len(json); i++ {
+				if json[i] > '\\' {
+					continue
+				}
+				if json[i] == '"' {
+					// look for an escaped slash
+					if json[i-1] == '\\' {
+						n := 0
+						for j := i - 2; j > 0; j-- {
+							if json[j] != '\\' {
+								break
+							}
+							n++
+						}
+						if n%2 == 0 {
+							continue
+						}
+					}
+					return json[:i+1], unescape(json[1:i])
+				}
+			}
+			var ret string
+			if i+1 < len(json) {
+				ret = json[:i+1]
+			} else {
+				ret = json[:i]
+			}
+			return ret, unescape(json[1:i])
+		}
+	}
+	return json, json[1:]
+}
+
+// parseString parses a string enclosed in double quotes from a JSON-encoded input string, handling escape sequences.
+// It starts from a given index `i` and extracts the next JSON string, taking care of any escape sequences like `\"`, `\\`, etc.
+//
+// Parameters:
+//   - `json`: A JSON string that may contain one or more strings enclosed in double quotes, possibly with escape sequences.
+//   - `i`: The index in the `json` string to begin parsing from. The function expects this to point to the starting quote of the string.
+//
+// Returns:
+//   - `i`: The index immediately following the closing quote of the string, or the point where parsing ends if no valid string is found.
+//   - `raw`: The substring of `json` that includes the entire quoted string, including the surrounding quotes.
+//   - `escaped`: A boolean flag indicating whether escape sequences were found and processed in the string.
+//   - `valid`: A boolean flag indicating whether the string was correctly parsed and closed with a quote.
+//
+// Example Usage:
+//
+//	json := "\"Hello\\nWorld\""
+//	i, raw, escaped, valid := parseString(json, 1)
+//	// raw: "\"Hello\\nWorld\"" (the full quoted string)
+//	// escaped: true (escape sequences processed)
+//	// valid: true (valid string enclosed with quotes)
+//
+//	json = "\"NoEscapeHere\""
+//	i, raw, escaped, valid = parseString(json, 1)
+//	// raw: "\"NoEscapeHere\"" (the full quoted string)
+//	// escaped: false (no escape sequences)
+//	// valid: true (valid string enclosed with quotes)
+//
+//	json = "\"Hello\\\"Quoted\\\"String\""
+//	i, raw, escaped, valid = parseString(json, 1)
+//	// raw: "\"Hello\\\"Quoted\\\"String\""
+//	// escaped: true
+//	// valid: true
+//
+// Details:
+//   - The function starts at the given index `i` and looks for the next double quote (`"`) to indicate the end of the string.
+//   - It processes escape sequences inside the string, such as escaped quotes (`\"`) and backslashes (`\\`).
+//   - If a valid string is found, the function returns the index after the closing quote, the full quoted string, and flags indicating if escape sequences were processed and if the string was properly closed.
+//   - If the string is not correctly closed or contains invalid escape sequences, the function will stop processing and return the current state.
+func parseString(json string, i int) (int, string, bool, bool) {
+	if unify4g.IsEmpty(json) || i < 0 {
+		return i, json, false, false
+	}
+	var s = i
+	for ; i < len(json); i++ {
+		if json[i] > '\\' {
+			continue
+		}
+		if json[i] == '"' {
+			return i + 1, json[s-1 : i+1], false, true
+		}
+		if json[i] == '\\' {
+			i++
+			for ; i < len(json); i++ {
+				if json[i] > '\\' {
+					continue
+				}
+				if json[i] == '"' {
+					// look for an escaped slash
+					if json[i-1] == '\\' {
+						n := 0
+						for j := i - 2; j > 0; j-- {
+							if json[j] != '\\' {
+								break
+							}
+							n++
+						}
+						if n%2 == 0 {
+							continue
+						}
+					}
+					return i + 1, json[s-1 : i+1], true, true
+				}
+			}
+			break
+		}
+	}
+	return i, json[s-1:], false, false
+}
+
+// parseNumeric parses a numeric value (integer or floating-point) from a JSON-encoded input string,
+// starting from a given index `i` and extracting the numeric value up to a non-numeric character or JSON delimiter.
+//
+// Parameters:
+//   - `json`: A JSON string that may contain numeric values (such as integers or floats).
+//   - `i`: The index in the `json` string to begin parsing from. The function expects this to point to the first digit or part of the number.
+//
+// Returns:
+//   - `i`: The index immediately following the last character of the parsed numeric value, or the point where parsing ends if no valid number is found.
+//   - `raw`: The substring of `json` that represents the numeric value (e.g., "123", "45.67", "-123").
+//
+// Example Usage:
+//
+//	json := "12345"
+//	i, raw := parseNumeric(json, 0)
+//	// raw: "12345" (the parsed numeric value)
+//	// i: the index after the last character of the number (6)
+//
+//	json = "-3.14159"
+//	i, raw = parseNumeric(json, 0)
+//	// raw: "-3.14159" (the parsed numeric value)
+//	// i: the index after the last character of the number (8)
+//
+// Details:
+//   - The function begins parsing from the given index `i` and continues until it encounters a character that is not part of a number (e.g., a space, comma, or closing brace/bracket).
+//   - It handles both integers and floating-point numbers, as well as negative numbers (e.g., "-123" or "-45.67").
+//   - The function stops parsing as soon as it encounters a non-numeric character such as whitespace, a comma, or a closing JSON delimiter (`}` or `]`), which indicates the end of the numeric value in the JSON structure.
+//   - The function returns the parsed numeric string along with the index that follows the number's last character.
+func parseNumeric(json string, i int) (int, string) {
+	if unify4g.IsEmpty(json) || i < 0 {
+		return i, json
+	}
+	var s = i
+	i++
+	for ; i < len(json); i++ {
+		if json[i] <= ' ' || json[i] == ',' || json[i] == ']' ||
+			json[i] == '}' {
+			return i, json[s:i]
+		}
+	}
+	return i, json[s:]
+}
+
+// parseJsonLiteral parses a literal value (e.g., "true", "false", or "null") from a JSON-encoded input string,
+// starting from a given index `i` and extracting the literal value up to a non-alphabetic character or JSON delimiter.
+//
+// Parameters:
+//   - `json`: A JSON string that may contain literal values (such as "true", "false", or "null").
+//   - `i`: The index in the `json` string to begin parsing from. The function expects this to point to the first character of the literal.
+//
+// Returns:
+//   - `i`: The index immediately following the last character of the parsed literal value, or the point where parsing ends if no valid literal is found.
+//   - `raw`: The substring of `json` that represents the literal value (e.g., "true", "false", "null").
+//
+// Example Usage:
+//
+//	json := "true"
+//	i, raw := parseJsonLiteral(json, 0)
+//	// raw: "true" (the parsed literal value)
+//	// i: the index after the last character of the literal (4)
+//
+//	json = "false"
+//	i, raw = parseJsonLiteral(json, 0)
+//	// raw: "false" (the parsed literal value)
+//	// i: the index after the last character of the literal (5)
+//
+//	json = "null"
+//	i, raw = parseJsonLiteral(json, 0)
+//	// raw: "null" (the parsed literal value)
+//	// i: the index after the last character of the literal (4)
+//
+// Details:
+//   - The function begins parsing from the given index `i` and continues until it encounters a character that is not part of a valid literal (i.e., characters outside the range of 'a' to 'z').
+//   - It handles JSON literal values like "true", "false", and "null" by checking for consecutive alphabetic characters.
+//   - The function stops parsing as soon as it encounters a non-alphabetic character such as whitespace, a comma, or a closing JSON delimiter (`}` or `]`), which indicates the end of the literal value in the JSON structure.
+//   - The function returns the parsed literal string along with the index that follows the literal's last character.
+func parseJsonLiteral(json string, i int) (int, string) {
+	if unify4g.IsEmpty(json) || i < 0 {
+		return i, json
+	}
+	var s = i
+	i++
+	for ; i < len(json); i++ {
+		if json[i] < 'a' || json[i] > 'z' {
+			return i, json[s:i]
+		}
+	}
+	return i, json[s:]
+}
+
+// isModifierOrJsonStart checks whether the first character of the input string `s` is a special character
+// (such as '@', '[', or '{') that might indicate a modifier or a JSON structure in the context of processing.
+//
+// The function performs the following checks:
+//   - If the first character is '@', it further inspects if the following characters indicate a modifier.
+//   - If the first character is '[' or '{', it returns `true`, indicating a potential JSON array or object.
+//   - The function will return `false` for any other characters or if modifiers are disabled.
+//
+// Parameters:
+//   - `s`: A string to be checked, which can be a part of a JSON structure or an identifier with a modifier.
+//
+// Returns:
+//   - `bool`: `true` if the first character is '@' followed by a modifier, or if the first character is '[' or '{'.
+//     `false` otherwise.
+//
+// Example Usage:
+//
+//	s1 := "@modifier|value"
+//	isModifierOrJsonStart(s1)
+//	// Returns: true (because it starts with '@' and is followed by a modifier)
+//
+//	s2 := "[1, 2, 3]"
+//	isModifierOrJsonStart(s2)
+//	// Returns: true (because it starts with '[')
+//
+//	s3 := "{ \"key\": \"value\" }"
+//	isModifierOrJsonStart(s3)
+//	// Returns: true (because it starts with '{')
+//
+//	s4 := "normalString"
+//	isModifierOrJsonStart(s4)
+//	// Returns: false (no '@', '[', or '{')
+//
+// Details:
+//   - The function first checks if modifiers are disabled (by `DisableModifiers` flag). If they are, it returns `false` immediately.
+//   - If the string starts with '@', it scans for a potential modifier by checking if there is a '.' or '|' after it,
+//     and verifies whether the modifier exists in the `modifiers` map.
+//   - If the string starts with '[' or '{', it immediately returns `true`, as those characters typically indicate the start of a JSON array or object.
+func isModifierOrJsonStart(s string) bool {
+	if DisableModifiers {
+		return false
+	}
+	c := s[0]
+	if c == '@' {
+		i := 1
+		for ; i < len(s); i++ {
+			if s[i] == '.' || s[i] == '|' || s[i] == ':' {
+				break
+			}
+		}
+		_, ok := modifiers[s[1:i]]
+		return ok
+	}
+	return c == '[' || c == '{'
+}
