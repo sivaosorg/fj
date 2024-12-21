@@ -4,9 +4,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode/utf16"
 	"unicode/utf8"
-	"unsafe"
 
 	"github.com/sivaosorg/unify4g"
 )
@@ -372,15 +370,15 @@ func (t Context) arrayOrMap(vc byte, valueSize bool) (result tinyContext) {
 			value.strings, value.numeric = "", 0
 		case 'n':
 			value.kind = Null
-			value.unprocessed = toSlice(json[i:])
+			value.unprocessed = lowerPrefix(json[i:])
 			value.strings, value.numeric = "", 0
 		case 't':
 			value.kind = True
-			value.unprocessed = toSlice(json[i:])
+			value.unprocessed = lowerPrefix(json[i:])
 			value.strings, value.numeric = "", 0
 		case 'f':
 			value.kind = False
-			value.unprocessed = toSlice(json[i:])
+			value.unprocessed = lowerPrefix(json[i:])
 			value.strings, value.numeric = "", 0
 		case '"':
 			value.kind = String
@@ -460,14 +458,14 @@ func Parse(json string) Context {
 			} else {
 				// null
 				value.kind = Null
-				value.unprocessed = toSlice(json[i:])
+				value.unprocessed = lowerPrefix(json[i:])
 			}
 		case 't':
 			value.kind = True
-			value.unprocessed = toSlice(json[i:])
+			value.unprocessed = lowerPrefix(json[i:])
 		case 'f':
 			value.kind = False
-			value.unprocessed = toSlice(json[i:])
+			value.unprocessed = lowerPrefix(json[i:])
 		case '"':
 			value.kind = String
 			value.unprocessed, value.strings = toString(json[i:])
@@ -486,68 +484,6 @@ func Parse(json string) Context {
 // If working with bytes, this method preferred over Parse(string(data))
 func ParseBytes(json []byte) Context {
 	return Parse(string(json))
-}
-
-func squash(json string) string {
-	// expects that the lead character is a '[' or '{' or '(' or '"'
-	// squash the value, ignoring all nested arrays and objects.
-	var i, depth int
-	if json[0] != '"' {
-		i, depth = 1, 1
-	}
-	for ; i < len(json); i++ {
-		if json[i] >= '"' && json[i] <= '}' {
-			switch json[i] {
-			case '"':
-				i++
-				s2 := i
-				for ; i < len(json); i++ {
-					if json[i] > '\\' {
-						continue
-					}
-					if json[i] == '"' {
-						// look for an escaped slash
-						if json[i-1] == '\\' {
-							n := 0
-							for j := i - 2; j > s2-1; j-- {
-								if json[j] != '\\' {
-									break
-								}
-								n++
-							}
-							if n%2 == 0 {
-								continue
-							}
-						}
-						break
-					}
-				}
-				if depth == 0 {
-					if i >= len(json) {
-						return json
-					}
-					return json[:i+1]
-				}
-			case '{', '[', '(':
-				depth++
-			case '}', ']', ')':
-				depth--
-				if depth == 0 {
-					return json[:i+1]
-				}
-			}
-		}
-	}
-	return json
-}
-
-func toSlice(json string) (raw string) {
-	for i := 1; i < len(json); i++ {
-		if json[i] < 'a' || json[i] > 'z' {
-			return json[:i]
-		}
-	}
-	return json
 }
 
 func toString(json string) (raw string, str string) {
@@ -1353,7 +1289,7 @@ func parseArray(c *parser, i int, path string) (int, bool) {
 		}
 		var tmp parser
 		tmp.value = eVal
-		fillIndex(c.json, &tmp)
+		calcSubstringIndex(c.json, &tmp)
 		parentIndex := tmp.value.index
 		var res Context
 		if eVal.kind == JSON {
@@ -2023,7 +1959,7 @@ func Get(json, path string) Context {
 		res.index = 0
 		return res
 	}
-	fillIndex(json, c)
+	calcSubstringIndex(json, c)
 	return c.value
 }
 
@@ -2037,65 +1973,6 @@ func GetBytes(json []byte, path string) Context {
 func goRune(json string) rune {
 	n, _ := strconv.ParseUint(json[:4], 16, 64)
 	return rune(n)
-}
-
-// unescape unescape a string
-func unescape(json string) string {
-	var str = make([]byte, 0, len(json))
-	for i := 0; i < len(json); i++ {
-		switch {
-		default:
-			str = append(str, json[i])
-		case json[i] < ' ':
-			return string(str)
-		case json[i] == '\\':
-			i++
-			if i >= len(json) {
-				return string(str)
-			}
-			switch json[i] {
-			default:
-				return string(str)
-			case '\\':
-				str = append(str, '\\')
-			case '/':
-				str = append(str, '/')
-			case 'b':
-				str = append(str, '\b')
-			case 'f':
-				str = append(str, '\f')
-			case 'n':
-				str = append(str, '\n')
-			case 'r':
-				str = append(str, '\r')
-			case 't':
-				str = append(str, '\t')
-			case '"':
-				str = append(str, '"')
-			case 'u':
-				if i+5 > len(json) {
-					return string(str)
-				}
-				r := goRune(json[i+1:])
-				i += 5
-				if utf16.IsSurrogate(r) {
-					// need another code
-					if len(json[i:]) >= 6 && json[i] == '\\' &&
-						json[i+1] == 'u' {
-						// we expect it to be correct so just consume it
-						r = utf16.DecodeRune(r, goRune(json[i+2:]))
-						i += 6
-					}
-				}
-				// provide enough space to encode the largest utf8 possible
-				str = append(str, 0, 0, 0, 0, 0, 0, 0, 0)
-				n := utf8.EncodeRune(str[len(str)-8:], r)
-				str = str[:len(str)-8+n]
-				i-- // backtrack index by one
-			}
-		}
-	}
-	return string(str)
 }
 
 // Less return true if a token is less than another token.
@@ -2174,7 +2051,7 @@ func parseAny(json string, i int, hit bool) (int, Context, bool) {
 			}
 			var tmp parser
 			tmp.value = res
-			fillIndex(json, &tmp)
+			calcSubstringIndex(json, &tmp)
 			return i, tmp.value, true
 		}
 		if json[i] <= ' ' {
@@ -2536,7 +2413,7 @@ func validateNull(data []byte, i int) (val int, ok bool) {
 //	}
 //	value := bjson.Get(json, "name.last")
 func Valid(json string) bool {
-	_, ok := validatePayload(stringBytes(json), 0)
+	_, ok := validatePayload(fromStr2Bytes(json), 0)
 	return ok
 }
 
@@ -2770,9 +2647,9 @@ func modPretty(json, arg string) string {
 			}
 			return true
 		})
-		return bytesString(unify4g.PrettyOptions(stringBytes(json), &opts))
+		return fromBytes2Str(unify4g.PrettyOptions(fromStr2Bytes(json), &opts))
 	}
-	return bytesString(unify4g.Pretty(stringBytes(json)))
+	return fromBytes2Str(unify4g.Pretty(fromStr2Bytes(json)))
 }
 
 // @this returns the current element. Can be used to retrieve the root element.
@@ -2782,7 +2659,7 @@ func modThis(json, arg string) string {
 
 // @ugly modifier removes all whitespace.
 func modUgly(json, arg string) string {
-	return bytesString(unify4g.Ugly(stringBytes(json)))
+	return fromBytes2Str(unify4g.Ugly(fromStr2Bytes(json)))
 }
 
 // @reverse reverses array elements or root object members.
@@ -2803,7 +2680,7 @@ func modReverse(json, arg string) string {
 			out = append(out, values[i].unprocessed...)
 		}
 		out = append(out, ']')
-		return bytesString(out)
+		return fromBytes2Str(out)
 	}
 	if res.IsObject() {
 		var keyValues []Context
@@ -2822,7 +2699,7 @@ func modReverse(json, arg string) string {
 			out = append(out, keyValues[i+1].unprocessed...)
 		}
 		out = append(out, '}')
-		return bytesString(out)
+		return fromBytes2Str(out)
 	}
 	return json
 }
@@ -2875,7 +2752,7 @@ func modFlatten(json, arg string) string {
 		return true
 	})
 	out = append(out, ']')
-	return bytesString(out)
+	return fromBytes2Str(out)
 }
 
 // @keys extracts the keys from an object.
@@ -3003,7 +2880,7 @@ func modJoin(json, arg string) string {
 		}
 	}
 	out = append(out, '}')
-	return bytesString(out)
+	return fromBytes2Str(out)
 }
 
 // @valid ensures that the json is valid before moving on. An empty string is
@@ -3065,79 +2942,6 @@ func modGroup(json, arg string) string {
 	}
 	data = append(data, ']')
 	return string(data)
-}
-
-// getBytes casts the input json bytes to a string and safely returns the
-// results as uniquely allocated data. This operation is intended to minimize
-// copies and allocations for the large json string->[]byte.
-func getBytes(json []byte, path string) Context {
-	var result Context
-	if json != nil {
-		// unsafe cast to string
-		result = Get(*(*string)(unsafe.Pointer(&json)), path)
-		// safely get the string headers
-		rawSafe := *(*stringHeader)(unsafe.Pointer(&result.unprocessed))
-		stringSafe := *(*stringHeader)(unsafe.Pointer(&result.strings))
-		// create byte slice headers
-		rawHeader := sliceHeader{data: rawSafe.data, length: rawSafe.length, capacity: rawSafe.length}
-		sliceHeader := sliceHeader{data: stringSafe.data, length: stringSafe.length, capacity: rawSafe.length}
-		if sliceHeader.data == nil {
-			// str is nil
-			if rawHeader.data == nil {
-				// raw is nil
-				result.unprocessed = ""
-			} else {
-				// raw has data, safely copy the slice header to a string
-				result.unprocessed = string(*(*[]byte)(unsafe.Pointer(&rawHeader)))
-			}
-			result.strings = ""
-		} else if rawHeader.data == nil {
-			// raw is nil
-			result.unprocessed = ""
-			// str has data, safely copy the slice header to a string
-			result.strings = string(*(*[]byte)(unsafe.Pointer(&sliceHeader)))
-		} else if uintptr(sliceHeader.data) >= uintptr(rawHeader.data) &&
-			uintptr(sliceHeader.data)+uintptr(sliceHeader.length) <=
-				uintptr(rawHeader.data)+uintptr(rawHeader.length) {
-			// Str is a substring of Raw.
-			start := uintptr(sliceHeader.data) - uintptr(rawHeader.data)
-			// safely copy the raw slice header
-			result.unprocessed = string(*(*[]byte)(unsafe.Pointer(&rawHeader)))
-			// substring the raw
-			result.strings = result.unprocessed[start : start+uintptr(sliceHeader.length)]
-		} else {
-			// safely copy both the raw and str slice headers to strings
-			result.unprocessed = string(*(*[]byte)(unsafe.Pointer(&rawHeader)))
-			result.strings = string(*(*[]byte)(unsafe.Pointer(&sliceHeader)))
-		}
-	}
-	return result
-}
-
-// fillIndex finds the position of Raw data and assigns it to the Index field
-// of the resulting value. If the position cannot be found then Index zero is
-// used instead.
-func fillIndex(json string, c *parser) {
-	if len(c.value.unprocessed) > 0 && !c.calc {
-		jsonHeader := *(*stringHeader)(unsafe.Pointer(&json))
-		rawHeader := *(*stringHeader)(unsafe.Pointer(&(c.value.unprocessed)))
-		c.value.index = int(uintptr(rawHeader.data) - uintptr(jsonHeader.data))
-		if c.value.index < 0 || c.value.index >= len(json) {
-			c.value.index = 0
-		}
-	}
-}
-
-func stringBytes(s string) []byte {
-	return *(*[]byte)(unsafe.Pointer(&sliceHeader{
-		data:     (*stringHeader)(unsafe.Pointer(&s)).data,
-		length:   len(s),
-		capacity: len(s),
-	}))
-}
-
-func bytesString(b []byte) string {
-	return *(*string)(unsafe.Pointer(&b))
 }
 
 // Paths returns the original bjson paths for a Result where the Result came
