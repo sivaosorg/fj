@@ -2939,7 +2939,7 @@ func analyzeQuery(query string) (
 // Edge Cases:
 //   - If no special characters are found, the entire input is stored in `Part`.
 //   - If the path contains an incomplete or invalid query, the function skips the query parsing gracefully.
-func analyzePath(path string) (r deeper) {
+func analyzePath(path string) (r metadata) {
 	for i := 0; i < len(path); i++ {
 		if path[i] == '|' {
 			r.Part = path[:i]

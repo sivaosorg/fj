@@ -341,7 +341,7 @@ func (t Context) Get(path string) Context {
 	return r
 }
 
-func (t Context) arrayOrMap(vc byte, valueSize bool) (result tinyContext) {
+func (t Context) arrayOrMap(vc byte, valueSize bool) (result queryContext) {
 	var json = t.unprocessed
 	var i int
 	var value Context
@@ -604,7 +604,7 @@ func nullish(t Context) bool {
 	return t.kind == Null
 }
 
-func queryMatches(dp *deeper, value Context) bool {
+func queryMatches(dp *metadata, value Context) bool {
 	rpv := dp.query.Value
 	if len(rpv) > 0 {
 		if rpv[0] == '~' {
