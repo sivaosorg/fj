@@ -1634,20 +1634,6 @@ func init() {
 		"string":  transformToString,
 		"json":    transformToJSON,
 		"group":   transformGroup,
-		"dig":     modDig,
+		"vlookup": transformVLookup,
 	}
-}
-
-func modDig(json, arg string) string {
-	all := deepSearchRecursively(nil, Parse(json), arg)
-	var out []byte
-	out = append(out, '[')
-	for i, res := range all {
-		if i > 0 {
-			out = append(out, ',')
-		}
-		out = append(out, res.unprocessed...)
-	}
-	out = append(out, ']')
-	return string(out)
 }

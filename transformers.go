@@ -769,3 +769,69 @@ func transformGroup(json, arg string) string {
 	data = append(data, ']')
 	return string(data)
 }
+
+// transformVLookup performs a value lookup on a JSON structure based on the specified path
+// and returns a JSON-encoded string containing all matching values found at that path.
+//
+// This function searches recursively through the JSON structure to find all occurrences
+// of the specified path and then aggregates the results into a new JSON array. The results
+// are returned as a string, which represents the matched values in their original, unprocessed form.
+//
+// Parameters:
+//   - `json`: A string representing the input JSON data. The function will parse this JSON
+//     and search for the specified path within the structure.
+//   - `arg`: A string representing the JSON path to search for. The path is used to navigate
+//     the nested JSON structure and retrieve values that match the specified key(s).
+//
+// Returns:
+//   - A string representing a JSON array containing all matching values found in the input JSON
+//     data. The values are presented in the same order they appear in the original JSON structure,
+//     and are enclosed within square brackets ([]). If no matches are found, an empty array is returned.
+//
+// Example Usage:
+//
+//	json := `{
+//	  "store": {
+//	    "book": [
+//	      { "category": "fiction", "author": "J.K. Rowling", "title": "Harry Potter" },
+//	      { "category": "science", "author": "Stephen Hawking", "title": "A Brief History of Time" }
+//	    ],
+//	    "music": [
+//	      { "artist": "The Beatles", "album": "Abbey Road" },
+//	      { "artist": "Pink Floyd", "album": "The Wall" }
+//	    ]
+//	  }
+//	}`
+//
+//	arg := "book.author"
+//	result := transformVLookup(json, arg)
+//
+//	// Output: `["J.K. Rowling", "Stephen Hawking"]`
+//	// The function will search for the "book.author" path and return all matching author names
+//	// found in the nested `book` array.
+//
+// Notes:
+//   - The `deepSearchRecursively` function is used to traverse the JSON structure and find all
+//     matches for the specified path, ensuring that nested objects and arrays are searched as well.
+//   - The results are accumulated in a slice, which is then converted into a JSON array and returned
+//     as a string representation.
+//   - If the path doesn't match any elements in the JSON structure, an empty array is returned.
+//
+// Implementation Details:
+//   - The function utilizes `deepSearchRecursively` to perform a depth-first traversal of the JSON
+//     structure and collect all matching values along the specified path.
+//   - The results are then appended to a byte slice (`seg`), which is later converted into a string.
+//   - The final output is a JSON array, even if no results are found.
+func transformVLookup(json, arg string) string {
+	all := deepSearchRecursively(nil, Parse(json), arg)
+	var seg []byte
+	seg = append(seg, '[')
+	for i, res := range all {
+		if i > 0 {
+			seg = append(seg, ',')
+		}
+		seg = append(seg, res.unprocessed...)
+	}
+	seg = append(seg, ']')
+	return string(seg)
+}
