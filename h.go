@@ -1240,7 +1240,7 @@ func verifyAny(data []byte, i int) (val int, ok bool) {
 	return i, false
 }
 
-// verifyJson attempts to validate the data starting at index i as a valid JSON payload. It checks for
+// verifyJSON attempts to validate the data starting at index i as a valid JSON payload. It checks for
 // the presence of valid JSON values after skipping any whitespace characters (spaces, tabs, newlines, etc.).
 // It calls the `verifyAny` function to validate the first JSON value and ensures that there are no unexpected
 // characters after the valid value.
@@ -1268,7 +1268,7 @@ func verifyAny(data []byte, i int) (val int, ok bool) {
 //
 //	data := []byte(`{"key1": 123, "key2": "value"}`)
 //	i := 0
-//	val, ok := verifyJson(data, i)
+//	val, ok := verifyJSON(data, i)
 //	// val: 28 (index after the valid payload)
 //	// ok: true (because the input is a valid JSON payload)
 //
@@ -1276,7 +1276,7 @@ func verifyAny(data []byte, i int) (val int, ok bool) {
 //   - The function ensures that the input data starts with a valid JSON value, as recognized by the `verifyAny`
 //     function, and that there are no unexpected characters after that value.
 //   - The function returns false if the JSON payload is incomplete or invalid.
-func verifyJson(data []byte, i int) (val int, ok bool) {
+func verifyJSON(data []byte, i int) (val int, ok bool) {
 	for ; i < len(data); i++ { // Iterate through the data starting from index i.
 		// Handle unexpected characters in the payload.
 		switch data[i] {

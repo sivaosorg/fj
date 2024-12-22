@@ -1040,7 +1040,7 @@ func Get(json, path string) Context {
 							}
 							if kind == '{' {
 								if len(sub.name) > 0 {
-									if sub.name[0] == '"' && Valid(sub.name) {
+									if sub.name[0] == '"' && IsValidJSON(sub.name) {
 										b = append(b, sub.name...)
 									} else {
 										b = appendJSON(b, sub.name)
@@ -1289,27 +1289,74 @@ func ForeachLine(json string, iterator func(line Context) bool) {
 	}
 }
 
-// Valid returns true if the input is valid json.
+// IsValidJSON checks whether the provided string contains valid JSON data.
+// It attempts to parse the JSON and returns a boolean indicating if the JSON is well-formed.
 //
-//	if !fj.Valid(json) {
-//		return errors.New("invalid json")
+// Parameters:
+//   - `json`: A string representing the JSON data that needs to be validated.
+//
+// Returns:
+//   - A boolean value (`true` or `false`):
+//   - `true`: The provided JSON string is valid and well-formed.
+//   - `false`: The provided JSON string is invalid or malformed.
+//
+// Notes:
+//   - This function utilizes the `fromStr2Bytes` function to efficiently convert the input string
+//     into a byte slice without allocating new memory. It then passes the byte slice to the
+//     `verifyJSON` function to check if the string conforms to valid JSON syntax.
+//   - If the input JSON is invalid, the function will return `false`, indicating that the JSON
+//     cannot be parsed or is improperly structured.
+//   - The function does not perform deep validation of the content of the JSON, but merely
+//     checks if the string is syntactically correct according to JSON rules.
+//
+// Example Usage:
+//
+//	json := `{"name": {"first": "Alice", "last": "Johnson"}, "age": 30}`
+//	if !IsValidJSON(json) {
+//	    fmt.Println("Invalid JSON")
+//	} else {
+//	    fmt.Println("IsValidJSON JSON")
 //	}
-//	value := fj.Get(json, "name.last")
-func Valid(json string) bool {
-	_, ok := verifyJson(fromStr2Bytes(json), 0)
+//
+//	// Output: "IsValidJSON JSON"
+func IsValidJSON(json string) bool {
+	_, ok := verifyJSON(fromStr2Bytes(json), 0)
 	return ok
 }
 
-// ValidBytes returns true if the input is valid json.
+// IsValidJSONBytes checks whether the provided byte slice contains valid JSON data.
+// It attempts to parse the JSON and returns a boolean indicating if the JSON is well-formed.
 //
-//	if !fj.Valid(json) {
-//		return errors.New("invalid json")
+// Parameters:
+//   - `json`: A byte slice (`[]byte`) representing the JSON data that needs to be validated.
+//
+// Returns:
+//   - A boolean value (`true` or `false`):
+//   - `true`: The provided JSON byte slice is valid and well-formed.
+//   - `false`: The provided JSON byte slice is invalid or malformed.
+//
+// Notes:
+//   - This function works directly with a byte slice (`[]byte`) rather than a string, making it more efficient
+//     when dealing with raw byte data that represents JSON. It avoids the need to convert between strings and
+//     byte slices, which can improve performance and memory usage when working with large or binary JSON data.
+//   - The function utilizes the `verifyJSON` function to check if the byte slice conforms to valid JSON syntax.
+//   - If the input byte slice represents invalid JSON, the function will return `false`, indicating that the JSON
+//     cannot be parsed or is improperly structured.
+//   - The function does not perform deep validation of the content of the JSON, but only checks whether the byte slice
+//     adheres to the syntax rules defined for JSON data structures.
+//
+// Example Usage:
+//
+//	jsonBytes := []byte(`{"name": {"first": "Alice", "last": "Johnson"}, "age": 30}`)
+//	if !IsValidJSONBytes(jsonBytes) {
+//	    fmt.Println("Invalid JSON")
+//	} else {
+//	    fmt.Println("Valid JSON")
 //	}
-//	value := fj.Get(json, "name.last")
 //
-// If working with bytes, this method preferred over ValidBytes(string(data))
-func ValidBytes(json []byte) bool {
-	_, ok := verifyJson(json, 0)
+//	// Output: "Valid JSON"
+func IsValidJSONBytes(json []byte) bool {
+	_, ok := verifyJSON(json, 0)
 	return ok
 }
 
@@ -1600,7 +1647,7 @@ func modJoin(json, arg string) string {
 // @valid ensures that the json is valid before moving on. An empty string is
 // returned when the json is not valid, otherwise it returns the original json.
 func modValid(json, arg string) string {
-	if !Valid(json) {
+	if !IsValidJSON(json) {
 		return ""
 	}
 	return json
@@ -1610,7 +1657,7 @@ func modValid(json, arg string) string {
 //
 //	"{\"id\":1023,\"name\":\"alert\"}" -> {"id":1023,"name":"alert"}
 func modFromStr(json, arg string) string {
-	if !Valid(json) {
+	if !IsValidJSON(json) {
 		return ""
 	}
 	return Parse(json).String()
