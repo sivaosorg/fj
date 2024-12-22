@@ -564,46 +564,6 @@ func (t Context) Value() interface{} {
 	}
 }
 
-func ofFalse(t Context) bool {
-	switch t.kind {
-	case Null:
-		return true
-	case False:
-		return true
-	case String:
-		b, err := strconv.ParseBool(strings.ToLower(t.strings))
-		if err != nil {
-			return false
-		}
-		return !b
-	case Number:
-		return t.numeric == 0
-	default:
-		return false
-	}
-}
-
-func ofTrue(t Context) bool {
-	switch t.kind {
-	case True:
-		return true
-	case String:
-		b, err := strconv.ParseBool(strings.ToLower(t.strings))
-		if err != nil {
-			return false
-		}
-		return b
-	case Number:
-		return t.numeric != 0
-	default:
-		return false
-	}
-}
-
-func nullish(t Context) bool {
-	return t.kind == Null
-}
-
 func queryMatches(dp *metadata, value Context) bool {
 	rpv := dp.query.Value
 	if len(rpv) > 0 {
@@ -615,11 +575,11 @@ func queryMatches(dp *metadata, value Context) bool {
 			case "*":
 				ish, ok = value.Exists(), true
 			case "null":
-				ish, ok = nullish(value), true
+				ish, ok = isNullish(value), true
 			case "true":
-				ish, ok = ofTrue(value), true
+				ish, ok = isTruthy(value), true
 			case "false":
-				ish, ok = ofFalse(value), true
+				ish, ok = isFalsy(value), true
 			}
 			if ok {
 				rpv = "true"
@@ -723,32 +683,74 @@ func ForEachLine(json string, iterator func(line Context) bool) {
 	}
 }
 
-// AppendJsonString is a convenience function that converts the provided string
-// to a valid JSON string and appends it to dst.
-func AppendJsonString(dst []byte, s string) []byte {
-	dst = append(dst, make([]byte, len(s)+2)...)
-	dst = append(dst[:len(dst)-len(s)-2], '"')
+// AppendJSONString converts a given string into a valid JSON string format
+// and appends it to the provided byte slice `dst`.
+//
+// This function escapes special characters in the input string `s` to ensure
+// that it adheres to the JSON string encoding rules, such as escaping double
+// quotes, backslashes, and control characters. Additionally, it handles UTF-8
+// characters and appends them in their proper encoded format.
+//
+// Parameters:
+//   - dst: A byte slice to which the encoded JSON string will be appended.
+//   - s: The input string to be converted into JSON string format.
+//
+// Returns:
+//   - []byte: The resulting byte slice containing the original content of `dst`
+//     with the JSON-encoded string appended.
+//
+// Details:
+//   - The function begins by appending space for the string `s` and wrapping
+//     it in double quotes.
+//   - It iterates through the input string `s` character by character and checks
+//     for specific cases where escaping or additional encoding is required:
+//   - Control characters (`\n`, `\r`, `\t`) are replaced with their escape
+//     sequences (`\\n`, `\\r`, `\\t`).
+//   - Characters like `<`, `>`, and `&` are escaped using Unicode notation
+//     to ensure the resulting JSON string is safe for embedding in HTML or XML.
+//   - Backslashes (`\`) and double quotes (`"`) are escaped with a preceding
+//     backslash (`\\`).
+//   - UTF-8 characters are properly encoded, and unsupported characters or
+//     decoding errors are replaced with the Unicode replacement character
+//     (`\ufffd`).
+//
+// Example Usage:
+//
+//	dst := []byte("Current JSON: ")
+//	s := "Hello \"world\"\nLine break!"
+//	result := AppendJSONString(dst, s)
+//	// result: []byte(`Current JSON: "Hello \"world\"\nLine break!"`)
+//
+// Notes:
+//   - This function is useful for building JSON-encoded strings dynamically
+//     without allocating new memory for each operation.
+//   - It ensures that the resulting JSON string is safe and adheres to
+//     encoding rules for use in various contexts such as web APIs or
+//     configuration files.
+func AppendJSONString(target []byte, s string) []byte {
+	target = append(target, make([]byte, len(s)+2)...)
+	target = append(target[:len(target)-len(s)-2], '"')
 	for i := 0; i < len(s); i++ {
 		if s[i] < ' ' {
-			dst = append(dst, '\\')
+			target = append(target, '\\')
 			switch s[i] {
 			case '\n':
-				dst = append(dst, 'n')
+				target = append(target, 'n')
 			case '\r':
-				dst = append(dst, 'r')
+				target = append(target, 'r')
 			case '\t':
-				dst = append(dst, 't')
+				target = append(target, 't')
 			default:
-				dst = append(dst, 'u')
-				dst = appendHex16(dst, uint16(s[i]))
+				target = append(target, 'u')
+				target = appendHex16(target, uint16(s[i]))
 			}
 		} else if s[i] == '>' || s[i] == '<' || s[i] == '&' {
-			dst = append(dst, '\\', 'u')
-			dst = appendHex16(dst, uint16(s[i]))
+			target = append(target, '\\', 'u')
+			target = appendHex16(target, uint16(s[i]))
 		} else if s[i] == '\\' {
-			dst = append(dst, '\\', '\\')
+			target = append(target, '\\', '\\')
 		} else if s[i] == '"' {
-			dst = append(dst, '\\', '"')
+			target = append(target, '\\', '"')
 		} else if s[i] > 127 {
 			// read utf8 character
 			r, n := utf8.DecodeRuneInString(s[i:])
@@ -756,19 +758,19 @@ func AppendJsonString(dst []byte, s string) []byte {
 				break
 			}
 			if r == utf8.RuneError && n == 1 {
-				dst = append(dst, `\ufffd`...)
+				target = append(target, `\ufffd`...)
 			} else if r == '\u2028' || r == '\u2029' {
-				dst = append(dst, `\u202`...)
-				dst = append(dst, hexDigits[r&0xF])
+				target = append(target, `\u202`...)
+				target = append(target, hexDigits[r&0xF])
 			} else {
-				dst = append(dst, s[i:i+n]...)
+				target = append(target, s[i:i+n]...)
 			}
 			i = i + n - 1
 		} else {
-			dst = append(dst, s[i])
+			target = append(target, s[i])
 		}
 	}
-	return append(dst, '"')
+	return append(target, '"')
 }
 
 // Get searches json for the specified path.
@@ -849,14 +851,14 @@ func Get(json, path string) Context {
 									if sub.name[0] == '"' && Valid(sub.name) {
 										b = append(b, sub.name...)
 									} else {
-										b = AppendJsonString(b, sub.name)
+										b = AppendJSONString(b, sub.name)
 									}
 								} else {
 									last := lastSegment(sub.path)
 									if isValidName(last) {
-										b = AppendJsonString(b, last)
+										b = AppendJSONString(b, last)
 									} else {
-										b = AppendJsonString(b, "_")
+										b = AppendJSONString(b, "_")
 									}
 								}
 								b = append(b, ':')
@@ -1344,7 +1346,7 @@ func modFromStr(json, arg string) string {
 //
 //	{"id":1023,"name":"alert"} -> "{\"id\":1023,\"name\":\"alert\"}"
 func modToStr(str, arg string) string {
-	return string(AppendJsonString(nil, str))
+	return string(AppendJSONString(nil, str))
 }
 
 func modGroup(json, arg string) string {

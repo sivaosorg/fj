@@ -3555,3 +3555,128 @@ func adjustModifier(json, path string) (pathYield, result string, ok bool) {
 	// if no modifier is found, return the path and an empty result.
 	return pathYield, result, false
 }
+
+// isNullish checks whether a given `Context` represents a JSON null value.
+//
+// Parameters:
+//   - t: A `Context` struct that contains information about a specific JSON value.
+//
+// Returns:
+//   - bool: Returns `true` if the `kind` field of the provided `Context` is `Null`,
+//     indicating that the JSON value is null. Otherwise, returns `false`.
+//
+// Example Usage:
+//
+//	ctx := Context{kind: Null}
+//	isNull := isNullish(ctx)
+//	// isNull: true
+//
+//	ctx = Context{kind: String, strings: "example"}
+//	isNull = isNullish(ctx)
+//	// isNull: false
+//
+// Notes:
+//   - This function provides a convenient way to check if a JSON value is null,
+//     allowing for easier handling of such cases in JSON processing.
+func isNullish(t Context) bool {
+	return t.kind == Null
+}
+
+// isFalsy determines if the given `Context` represents a "falsy" value.
+//
+// A value is considered "falsy" if:
+//   - It is a JSON null (`Null`).
+//   - It is a JSON false (`False`).
+//   - It is a string that can be parsed as a boolean and evaluates to `false` (e.g., "false", "0").
+//   - It is a number and equals zero.
+//
+// Parameters:
+//   - t: A `Context` struct that contains information about a specific JSON value.
+//
+// Returns:
+//   - bool: Returns `true` if the `Context` represents a falsy value; otherwise, returns `false`.
+//
+// Example Usage:
+//
+//	ctx := Context{kind: False}
+//	isFalse := isFalsy(ctx)
+//	// isFalse: true
+//
+//	ctx = Context{kind: String, strings: "false"}
+//	isFalse = isFalsy(ctx)
+//	// isFalse: true
+//
+//	ctx = Context{kind: Number, numeric: 1.0}
+//	isFalse = isFalsy(ctx)
+//	// isFalse: false
+//
+// Notes:
+//   - For string values, the function attempts to parse the string as a boolean.
+//     If parsing fails, the value is not considered falsy.
+//   - Numeric values are considered falsy only if they equal zero.
+func isFalsy(t Context) bool {
+	switch t.kind {
+	case Null:
+		return true
+	case False:
+		return true
+	case String:
+		b, err := strconv.ParseBool(strings.ToLower(t.strings))
+		if err != nil {
+			return false
+		}
+		return !b
+	case Number:
+		return t.numeric == 0
+	default:
+		return false
+	}
+}
+
+// isTruthy determines if the given `Context` represents a "truthy" value.
+//
+// A value is considered "truthy" if:
+//   - It is a JSON true (`True`).
+//   - It is a string that can be parsed as a boolean and evaluates to `true` (e.g., "true", "1").
+//   - It is a number and does not equal zero.
+//
+// Parameters:
+//   - t: A `Context` struct that contains information about a specific JSON value.
+//
+// Returns:
+//   - bool: Returns `true` if the `Context` represents a truthy value; otherwise, returns `false`.
+//
+// Example Usage:
+//
+//	ctx := Context{kind: True}
+//	isTrue := isTruthy(ctx)
+//	// isTrue: true
+//
+//	ctx = Context{kind: String, strings: "true"}
+//	isTrue = isTruthy(ctx)
+//	// isTrue: true
+//
+//	ctx = Context{kind: Number, numeric: 0.0}
+//	isTrue = isTruthy(ctx)
+//	// isTrue: false
+//
+// Notes:
+//   - For string values, the function attempts to parse the string as a boolean.
+//     If parsing fails, the value is not considered truthy.
+//   - Numeric values are considered truthy if they do not equal zero.
+func isTruthy(t Context) bool {
+	switch t.kind {
+	case True:
+		return true
+	case String:
+		b, err := strconv.ParseBool(strings.ToLower(t.strings))
+		if err != nil {
+			return false
+		}
+		return b
+	case Number:
+		return t.numeric != 0
+	default:
+		return false
+	}
+}
