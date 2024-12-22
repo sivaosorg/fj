@@ -3084,7 +3084,7 @@ func analyzeArray(c *parser, i int, path string) (int, bool) {
 			}
 			res = eVal
 		}
-		if queryMatches(&analysis, res) {
+		if matchesQueryConditions(&analysis, res) {
 			if analysis.More {
 				left, right, ok := splitPathPipe(analysis.Path)
 				if ok {
@@ -3679,4 +3679,145 @@ func isTruthy(t Context) bool {
 	default:
 		return false
 	}
+}
+
+// matchesQueryConditions determines whether a given `Context` value matches the conditions specified in the `metadata` query.
+//
+// This function evaluates a JSON path query against a specific `Context` value, checking for matching conditions such as
+// existence, equality, inequality, and other relational operations. It supports operations on strings, numbers, and booleans.
+//
+// Parameters:
+//   - dp: A pointer to the `metadata` structure containing query details, such as the value to match (`Value`) and
+//     the comparison option (`Option`).
+//   - value: A `Context` structure representing the JSON value to be evaluated against the query.
+//
+// Returns:
+//   - bool: Returns `true` if the `Context` matches the query conditions; otherwise, returns `false`.
+//
+// Query Matching Process:
+//  1. If the query value (`Value`) starts with a `~`, it is treated as a special type such as a wildcard
+//     (`*`), `null`, `true`, or `false`.
+//  2. The function evaluates whether the `value` exists in the JSON structure. If it doesn't exist, the result is `false`.
+//  3. If no `Option` is provided in the query, the function checks for the existence of the value (`Exists`).
+//  4. Based on the type of the `value` (e.g., `String`, `Number`, `True`, `False`), the function applies the query's
+//     `Option` to perform comparisons or match patterns.
+//
+// Supported Query Options:
+//   - `=`: Checks for equality.
+//   - `!=`: Checks for inequality.
+//   - `<`, `<=`: Checks if the value is less than or equal to the query value.
+//   - `>`, `>=`: Checks if the value is greater than or equal to the query value.
+//   - `%`: Checks if the value matches a regular expression (string only).
+//   - `!%`: Checks if the value does not match a regular expression (string only).
+//
+// Example Usage:
+//
+//	dp := &metadata{query: {Option: "=", Value: "example"}}
+//	value := Context{kind: String, strings: "example"}
+//	matches := matchesQueryConditions(dp, value)
+//	// matches: true
+//
+// Notes:
+//   - For wildcard queries (`~`), special handling applies to determine if the `Context` satisfies the query type.
+//   - Boolean values (`True` or `False`) are evaluated based on string representations of "true" and "false".
+//   - Numeric comparisons rely on parsing the query value into a float64.
+//
+// Limitations:
+//   - String pattern matching (`%`, `!%`) relies on the `matchSafely` function, which is not defined here.
+//   - Unsupported types or operations return `false`.
+func matchesQueryConditions(dp *metadata, value Context) bool {
+	mt := dp.query.Value
+	if len(mt) > 0 {
+		if mt[0] == '~' {
+			mt = mt[1:]
+			var ish, ok bool
+			switch mt {
+			case "*":
+				ish, ok = value.Exists(), true
+			case "null":
+				ish, ok = isNullish(value), true
+			case "true":
+				ish, ok = isTruthy(value), true
+			case "false":
+				ish, ok = isFalsy(value), true
+			}
+			if ok {
+				mt = "true"
+				if ish {
+					value = Context{kind: True}
+				} else {
+					value = Context{kind: False}
+				}
+			} else {
+				mt = ""
+				value = Context{}
+			}
+		}
+	}
+	if !value.Exists() {
+		return false
+	}
+	if dp.query.Option == "" {
+		return true
+	}
+	switch value.kind {
+	case String:
+		switch dp.query.Option {
+		case "=":
+			return value.strings == mt
+		case "!=":
+			return value.strings != mt
+		case "<":
+			return value.strings < mt
+		case "<=":
+			return value.strings <= mt
+		case ">":
+			return value.strings > mt
+		case ">=":
+			return value.strings >= mt
+		case "%":
+			return matchSafely(value.strings, mt)
+		case "!%":
+			return !matchSafely(value.strings, mt)
+		}
+	case Number:
+		_rightVal, _ := strconv.ParseFloat(mt, 64)
+		switch dp.query.Option {
+		case "=":
+			return value.numeric == _rightVal
+		case "!=":
+			return value.numeric != _rightVal
+		case "<":
+			return value.numeric < _rightVal
+		case "<=":
+			return value.numeric <= _rightVal
+		case ">":
+			return value.numeric > _rightVal
+		case ">=":
+			return value.numeric >= _rightVal
+		}
+	case True:
+		switch dp.query.Option {
+		case "=":
+			return mt == "true"
+		case "!=":
+			return mt != "true"
+		case ">":
+			return mt == "false"
+		case ">=":
+			return true
+		}
+	case False:
+		switch dp.query.Option {
+		case "=":
+			return mt == "false"
+		case "!=":
+			return mt != "false"
+		case "<":
+			return mt == "true"
+		case "<=":
+			return true
+		}
+	}
+	return false
 }
