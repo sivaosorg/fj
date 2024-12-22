@@ -1424,7 +1424,7 @@ func appendHex16(bytes []byte, x uint16) []byte {
 	)
 }
 
-// parseUint parses a string as an unsigned integer (uint64).
+// parseUint64 parses a string as an unsigned integer (uint64).
 // It attempts to convert the given string to a numeric value, where each character in the string
 // must be a digit between '0' and '9'. If any non-digit character is encountered, the function
 // returns false, indicating the string does not represent a valid unsigned integer.
@@ -1440,12 +1440,12 @@ func appendHex16(bytes []byte, x uint16) []byte {
 // Example Usage:
 //
 //	str := "12345"
-//	n, ok := parseUint(str)
+//	n, ok := parseUint64(str)
 //	// n: 12345 (the parsed unsigned integer)
 //	// ok: true (the string is a valid unsigned integer)
 //
 //	str = "12a45"
-//	n, ok = parseUint(str)
+//	n, ok = parseUint64(str)
 //	// n: 0 (parsing failed)
 //	// ok: false (the string contains invalid characters)
 //
@@ -1455,7 +1455,7 @@ func appendHex16(bytes []byte, x uint16) []byte {
 //     with each new digit to shift the previous digits left.
 //   - If any non-digit character is encountered, the function returns `0` and `false`.
 //   - The function assumes that the input string is non-empty and only contains valid ASCII digits if valid.
-func parseUint(s string) (n uint64, ok bool) {
+func parseUint64(s string) (n uint64, ok bool) {
 	var i int
 	if i == len(s) {
 		return 0, false
@@ -1470,7 +1470,7 @@ func parseUint(s string) (n uint64, ok bool) {
 	return n, true
 }
 
-// parseInt parses a string as a signed integer (int64).
+// parseInt64 parses a string as a signed integer (int64).
 // It attempts to convert the given string to a numeric value, where each character in the string
 // must be a digit between '0' and '9'. The function also supports negative numbers, indicated by a leading
 // minus sign ('-'). If any non-digit character is encountered (except for the minus sign at the start),
@@ -1487,12 +1487,12 @@ func parseUint(s string) (n uint64, ok bool) {
 // Example Usage:
 //
 //	str := "-12345"
-//	n, ok := parseInt(str)
+//	n, ok := parseInt64(str)
 //	// n: -12345 (the parsed signed integer)
 //	// ok: true (the string is a valid signed integer)
 //
 //	str = "12a45"
-//	n, ok = parseInt(str)
+//	n, ok = parseInt64(str)
 //	// n: 0 (parsing failed)
 //	// ok: false (the string contains invalid characters)
 //
@@ -1504,7 +1504,7 @@ func parseUint(s string) (n uint64, ok bool) {
 //   - If any non-digit character is encountered (excluding the leading minus sign), the function returns `0` and `false`.
 //   - If the `sign` flag is set, the result is negated before returning.
 //   - The function assumes that the input string is non-empty and contains valid digits if valid, with an optional leading minus sign.
-func parseInt(s string) (n int64, ok bool) {
+func parseInt64(s string) (n int64, ok bool) {
 	var i int
 	var sign bool
 	if len(s) > 0 && s[0] == '-' {
@@ -1527,7 +1527,7 @@ func parseInt(s string) (n int64, ok bool) {
 	return n, true
 }
 
-// ensureSafeInt validates a given floating-point number (float64) to ensure it lies within the safe range for integers
+// ensureSafeInt64 validates a given floating-point number (float64) to ensure it lies within the safe range for integers
 // in JavaScript (the Number type), as defined by the ECMAScript specification. The function checks if the number
 // is within the range of valid safe integers that can be accurately represented in JavaScript without loss of precision.
 // If the number is within the safe integer range, it returns the corresponding signed 64-bit integer value (int64).
@@ -1544,12 +1544,12 @@ func parseInt(s string) (n int64, ok bool) {
 // Example Usage:
 //
 //	f := 1234567890.0
-//	n, ok := ensureSafeInt(f)
+//	n, ok := ensureSafeInt64(f)
 //	// n: 1234567890 (the number as a valid int64)
 //	// ok: true (the number is within the safe integer range)
 //
 //	f = 9007199254740992.0
-//	n, ok = ensureSafeInt(f)
+//	n, ok = ensureSafeInt64(f)
 //	// n: 0 (parsing failed)
 //	// ok: false (the number is outside the safe integer range)
 //
@@ -1566,7 +1566,7 @@ func parseInt(s string) (n int64, ok bool) {
 //   - https://tc39.es/ecma262/#sec-number.min_safe_integer
 //
 //   - https://tc39.es/ecma262/#sec-number.max_safe_integer
-func ensureSafeInt(f float64) (n int64, ok bool) {
+func ensureSafeInt64(f float64) (n int64, ok bool) {
 	if f < -9007199254740991 || f > 9007199254740991 {
 		return 0, false
 	}
@@ -3053,7 +3053,7 @@ func analyzeArray(c *parser, i int, path string) (int, bool) {
 	var queryIndexes []int
 	analysis := analyzePath(path)
 	if !analysis.Arch {
-		n, ok := parseUint(analysis.Part)
+		n, ok := parseUint64(analysis.Part)
 		if !ok {
 			partIdx = -1
 		} else {

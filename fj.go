@@ -134,26 +134,27 @@ func AppendJSONString(target []byte, s string) []byte {
 	return append(target, '"')
 }
 
-func (c Context) Kind() Type {
-	return c.kind
-}
-
-func (c Context) Unprocessed() string {
-	return c.unprocessed
-}
-
-func (c Context) Numeric() float64 {
-	return c.numeric
-}
-
-func (c Context) Index() int {
-	return c.index
-}
-
-func (c Context) Indexes() []int {
-	return c.indexes
-}
-
+// String provides a string representation of the `Type` enumeration.
+//
+// This method converts the `Type` value into a human-readable string.
+// It is particularly useful for debugging or logging purposes.
+//
+// Mapping of `Type` values to strings:
+//   - Null: "Null"
+//   - False: "False"
+//   - Number: "Number"
+//   - String: "String"
+//   - True: "True"
+//   - JSON: "JSON"
+//   - Default (unknown type): An empty string is returned.
+//
+// Returns:
+//   - string: A string representation of the `Type` value.
+//
+// Example Usage:
+//
+//	var t Type = True
+//	fmt.Println(t.String())  // Output: "True"
 func (t Type) String() string {
 	switch t {
 	default:
@@ -173,123 +174,217 @@ func (t Type) String() string {
 	}
 }
 
-// String returns a string representation of the value.
-func (t Context) String() string {
-	switch t.kind {
+// Kind returns the JSON type of the Context.
+// It provides the specific type of the JSON value, such as String, Number, Object, etc.
+//
+// Returns:
+//   - Type: The type of the JSON value represented by the Context.
+func (ctx Context) Kind() Type {
+	return ctx.kind
+}
+
+// Unprocessed returns the raw, unprocessed JSON string for the Context.
+// This can be useful for inspecting the original data without any parsing or transformations.
+//
+// Returns:
+//   - string: The unprocessed JSON string.
+func (ctx Context) Unprocessed() string {
+	return ctx.unprocessed
+}
+
+// Numeric returns the numeric value of the Context, if applicable.
+// This is relevant when the Context represents a JSON number.
+//
+// Returns:
+//   - float64: The numeric value of the Context.
+//     If the Context does not represent a number, the value may be undefined.
+func (ctx Context) Numeric() float64 {
+	return ctx.numeric
+}
+
+// Index returns the index of the unprocessed JSON value in the original JSON string.
+// This can be used to track the position of the value in the source data.
+// If the index is unknown, it defaults to 0.
+//
+// Returns:
+//   - int: The position of the value in the original JSON string.
+func (ctx Context) Index() int {
+	return ctx.index
+}
+
+// Indexes returns a slice of indices for elements matching a path containing the '#' character.
+// This is useful for handling path queries that involve multiple matches.
+//
+// Returns:
+//   - []int: A slice of indices for matching elements.
+func (ctx Context) Indexes() []int {
+	return ctx.indexes
+}
+
+// String returns a string representation of the Context value.
+// The output depends on the JSON type of the Context:
+//   - For `False` type: Returns "false".
+//   - For `True` type: Returns "true".
+//   - For `Number` type: Returns the numeric value as a string.
+//     If the numeric value was calculated, it formats the float value.
+//     Otherwise, it preserves the original unprocessed string if valid.
+//   - For `String` type: Returns the string value.
+//   - For `JSON` type: Returns the raw unprocessed JSON string.
+//   - For other types: Returns an empty string.
+//
+// Returns:
+//   - string: A string representation of the Context value.
+func (ctx Context) String() string {
+	switch ctx.kind {
 	default:
 		return ""
 	case False:
 		return "false"
 	case Number:
-		if len(t.unprocessed) == 0 {
-			// calculated result
-			return strconv.FormatFloat(t.numeric, 'f', -1, 64)
+		if len(ctx.unprocessed) == 0 {
+			return strconv.FormatFloat(ctx.numeric, 'f', -1, 64)
 		}
 		var i int
-		if t.unprocessed[0] == '-' {
+		if ctx.unprocessed[0] == '-' {
 			i++
 		}
-		for ; i < len(t.unprocessed); i++ {
-			if t.unprocessed[i] < '0' || t.unprocessed[i] > '9' {
-				return strconv.FormatFloat(t.numeric, 'f', -1, 64)
+		for ; i < len(ctx.unprocessed); i++ {
+			if ctx.unprocessed[i] < '0' || ctx.unprocessed[i] > '9' {
+				return strconv.FormatFloat(ctx.numeric, 'f', -1, 64)
 			}
 		}
-		return t.unprocessed
+		return ctx.unprocessed
 	case String:
-		return t.strings
+		return ctx.strings
 	case JSON:
-		return t.unprocessed
+		return ctx.unprocessed
 	case True:
 		return "true"
 	}
 }
 
-// Bool returns an boolean representation.
-func (t Context) Bool() bool {
-	switch t.kind {
+// Bool converts the Context value into a boolean representation.
+// The conversion depends on the JSON type of the Context:
+//   - For `True` type: Returns `true`.
+//   - For `String` type: Attempts to parse the string as a boolean (case-insensitive).
+//     If parsing fails, defaults to `false`.
+//   - For `Number` type: Returns `true` if the numeric value is non-zero, otherwise `false`.
+//   - For all other types: Returns `false`.
+//
+// Returns:
+//   - bool: A boolean representation of the Context value.
+func (ctx Context) Bool() bool {
+	switch ctx.kind {
 	default:
 		return false
 	case True:
 		return true
 	case String:
-		b, _ := strconv.ParseBool(strings.ToLower(t.strings))
+		b, _ := strconv.ParseBool(strings.ToLower(ctx.strings))
 		return b
 	case Number:
-		return t.numeric != 0
+		return ctx.numeric != 0
 	}
 }
 
-// Int returns an integer representation.
-func (t Context) Int() int64 {
-	switch t.kind {
+// Int64 converts the Context value into an integer representation (int64).
+// The conversion depends on the JSON type of the Context:
+//   - For `True` type: Returns 1.
+//   - For `String` type: Attempts to parse the string into an integer. Defaults to 0 on failure.
+//   - For `Number` type:
+//   - Directly converts the numeric value to an integer if it's safe.
+//   - Parses the unprocessed string for integer values as a fallback.
+//   - Defaults to converting the float64 numeric value to an int64.
+//
+// Returns:
+//   - int64: An integer representation of the Context value.
+func (ctx Context) Int64() int64 {
+	switch ctx.kind {
 	default:
 		return 0
 	case True:
 		return 1
 	case String:
-		n, _ := parseInt(t.strings)
+		n, _ := parseInt64(ctx.strings)
 		return n
 	case Number:
-		// try to directly convert the float64 to int64
-		i, ok := ensureSafeInt(t.numeric)
+		i, ok := ensureSafeInt64(ctx.numeric)
 		if ok {
 			return i
 		}
-		// now try to parse the raw string
-		i, ok = parseInt(t.unprocessed)
+		i, ok = parseInt64(ctx.unprocessed)
 		if ok {
 			return i
 		}
-		// fallback to a standard conversion
-		return int64(t.numeric)
+		return int64(ctx.numeric)
 	}
 }
 
-// Uint returns an unsigned integer representation.
-func (t Context) Uint() uint64 {
-	switch t.kind {
+// Uint64 converts the Context value into an unsigned integer representation (uint64).
+// The conversion depends on the JSON type of the Context:
+//   - For `True` type: Returns 1.
+//   - For `String` type: Attempts to parse the string into an unsigned integer. Defaults to 0 on failure.
+//   - For `Number` type:
+//   - Directly converts the numeric value to a uint64 if it's safe and non-negative.
+//   - Parses the unprocessed string for unsigned integer values as a fallback.
+//   - Defaults to converting the float64 numeric value to a uint64.
+//
+// Returns:
+//   - uint64: An unsigned integer representation of the Context value.
+func (ctx Context) Uint64() uint64 {
+	switch ctx.kind {
 	default:
 		return 0
 	case True:
 		return 1
 	case String:
-		n, _ := parseUint(t.strings)
+		n, _ := parseUint64(ctx.strings)
 		return n
 	case Number:
-		// try to directly convert the float64 to uint64
-		i, ok := ensureSafeInt(t.numeric)
+		i, ok := ensureSafeInt64(ctx.numeric)
 		if ok && i >= 0 {
 			return uint64(i)
 		}
-		// now try to parse the raw string
-		u, ok := parseUint(t.unprocessed)
+		u, ok := parseUint64(ctx.unprocessed)
 		if ok {
 			return u
 		}
-		// fallback to a standard conversion
-		return uint64(t.numeric)
+		return uint64(ctx.numeric)
 	}
 }
 
-// Float returns an float64 representation.
-func (t Context) Float() float64 {
-	switch t.kind {
+// Float64 converts the Context value into a floating-point representation (float64).
+// The conversion depends on the JSON type of the Context:
+//   - For `True` type: Returns 1.
+//   - For `String` type: Attempts to parse the string as a floating-point number. Defaults to 0 on failure.
+//   - For `Number` type: Returns the numeric value as a float64.
+//
+// Returns:
+//   - float64: A floating-point representation of the Context value.
+func (ctx Context) Float64() float64 {
+	switch ctx.kind {
 	default:
 		return 0
 	case True:
 		return 1
 	case String:
-		n, _ := strconv.ParseFloat(t.strings, 64)
+		n, _ := strconv.ParseFloat(ctx.strings, 64)
 		return n
 	case Number:
-		return t.numeric
+		return ctx.numeric
 	}
 }
 
-// Time returns a time.Time representation.
-func (t Context) Time() time.Time {
-	res, _ := time.Parse(time.RFC3339, t.String())
-	return res
+// Time converts the Context value into a time.Time representation.
+// The conversion interprets the Context value as a string in RFC3339 format.
+// If parsing fails, the zero time (0001-01-01 00:00:00 UTC) is returned.
+//
+// Returns:
+//   - time.Time: A time.Time representation of the Context value.
+//     Defaults to the zero time if parsing fails.
+func (ctx Context) Time() time.Time {
+	v, _ := time.Parse(time.RFC3339, ctx.String())
+	return v
 }
 
 // Array returns back an array of values.
@@ -980,7 +1075,7 @@ func modPretty(json, arg string) string {
 			case "prefix":
 				opts.Prefix = stripNonWhitespace(value.String())
 			case "width":
-				opts.Width = int(value.Int())
+				opts.Width = int(value.Int64())
 			}
 			return true
 		})
