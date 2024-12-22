@@ -1632,20 +1632,10 @@ func init() {
 		"keys":    transformKeys,
 		"values":  transformValues,
 		"tostr":   modToStr,
-		"fromstr": modFromStr,
+		"toJSON":  transformToJSON,
 		"group":   modGroup,
 		"dig":     modDig,
 	}
-}
-
-// @fromstr converts a string to json
-//
-//	"{\"id\":1023,\"name\":\"alert\"}" -> {"id":1023,"name":"alert"}
-func modFromStr(json, arg string) string {
-	if !IsValidJSON(json) {
-		return ""
-	}
-	return Parse(json).String()
 }
 
 // @tostr converts a string to json

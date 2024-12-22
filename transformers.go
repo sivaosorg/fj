@@ -615,3 +615,43 @@ func transformValues(json, arg string) string {
 	builder.WriteByte(']')
 	return builder.String()
 }
+
+// transformToJSON converts a string into a valid JSON representation.
+//
+// This function ensures that the input string is a valid JSON before attempting to
+// parse and convert it into its corresponding JSON format. If the input string is
+// a valid JSON, the function returns the formatted JSON as a string. Otherwise,
+// it returns an empty string to indicate that the input was not valid JSON.
+//
+// Parameters:
+//   - `json`: A string representing the data that needs to be converted to a valid JSON format.
+//   - `arg`: An additional argument which is unused in this function. It may be a placeholder for future extensions.
+//
+// Returns:
+//   - A string representing the input data in valid JSON format. If the input string is not valid JSON,
+//     an empty string is returned.
+//
+// Example Usage:
+//
+//	// Input string
+//	json := "{\"id\":1023,\"name\":\"alert\"}"
+//
+//	// Convert to valid JSON representation
+//	result := transformToJSON(json, "")
+//	fmt.Println(result)  // Output: {"id":1023,"name":"alert"}
+//
+//	// Invalid input string
+//	invalidJson := "\"id\":1023,\"name\":\"alert\""
+//	result = transformToJSON(invalidJson, "")
+//	fmt.Println(result)  // Output: ""
+//
+// Notes:
+//   - This function uses the `IsValidJSON` helper to check if the input string is a valid JSON format.
+//   - If the input string is valid JSON, the `Parse` function is used to parse and format it, ensuring it is returned in the proper JSON format.
+//   - If the input is invalid, an empty string is returned, indicating that the transformation failed.
+func transformToJSON(json, arg string) string {
+	if !IsValidJSON(json) {
+		return ""
+	}
+	return Parse(json).String()
+}
