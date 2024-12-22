@@ -1622,18 +1622,20 @@ func (t Type) String() string {
 
 func init() {
 	jsonTransformers = map[string]func(json, arg string) string{
-		"this":    transformDefault,
-		"valid":   transformJSONValid,
-		"pretty":  transformPretty,
-		"minify":  transformMinify,
-		"reverse": transformReverse,
-		"flatten": transformFlatten,
-		"join":    transformJoin,
-		"keys":    transformKeys,
-		"values":  transformValues,
-		"string":  transformToString,
-		"json":    transformToJSON,
-		"group":   transformGroup,
-		"vlookup": transformVLookup,
+		"this":      transformDefault,
+		"valid":     transformJSONValid,
+		"pretty":    transformPretty,
+		"minify":    transformMinify,
+		"reverse":   transformReverse,
+		"flatten":   transformFlatten,
+		"join":      transformJoin,
+		"keys":      transformKeys,
+		"values":    transformValues,
+		"string":    transformToString,
+		"json":      transformToJSON,
+		"group":     transformGroup,
+		"vlookup":   transformVLookup,
+		"uppercase": transformUppercase,
+		"lowercase": transformLowercase,
 	}
 }

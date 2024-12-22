@@ -835,3 +835,63 @@ func transformVLookup(json, arg string) string {
 	seg = append(seg, ']')
 	return string(seg)
 }
+
+// transformUppercase converts the input JSON string to uppercase.
+//
+// This function takes a JSON string as input and converts all of its characters
+// to uppercase. If the input string is empty, it returns the string unchanged.
+//
+// Parameters:
+//   - `json`: The JSON string to be converted to uppercase.
+//   - `arg`: An optional string parameter that is currently unused in this function,
+//     but it could be extended for future use to modify the behavior of the transformation.
+//
+// Returns:
+//   - A string with all characters converted to uppercase. If the input `json`
+//     is empty, it returns the input string unchanged.
+//
+// Example Usage:
+//
+//	json := "{\"name\":\"Alice\",\"age\":25}"
+//	result := transformUppercase(json, "")
+//	fmt.Println(result) // Output: "{\"NAME\":\"ALICE\",\"AGE\":25}"
+//
+// Notes:
+//   - This function uses the standard Go `strings.ToUpper` method to convert the string
+//     to uppercase, which applies the transformation to every character in the string.
+func transformUppercase(json, arg string) string {
+	if unify4g.IsEmpty(json) {
+		return json
+	}
+	return strings.ToUpper(json)
+}
+
+// transformLowercase converts the input JSON string to lowercase.
+//
+// This function takes a JSON string as input and converts all of its characters
+// to lowercase. If the input string is empty, it returns the string unchanged.
+//
+// Parameters:
+//   - `json`: The JSON string to be converted to lowercase.
+//   - `arg`: An optional string parameter that is currently unused in this function,
+//     but it could be extended for future use to modify the behavior of the transformation.
+//
+// Returns:
+//   - A string with all characters converted to lowercase. If the input `json`
+//     is empty, it returns the input string unchanged.
+//
+// Example Usage:
+//
+//	json := "{\"name\":\"Alice\",\"age\":25}"
+//	result := transformLowercase(json, "")
+//	fmt.Println(result) // Output: "{\"name\":\"alice\",\"age\":25}"
+//
+// Notes:
+//   - This function uses the standard Go `strings.ToLower` method to convert the string
+//     to lowercase, which applies the transformation to every character in the string.
+func transformLowercase(json, arg string) string {
+	if unify4g.IsEmpty(json) {
+		return json
+	}
+	return strings.ToLower(json)
+}
