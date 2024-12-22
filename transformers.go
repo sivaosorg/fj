@@ -546,3 +546,72 @@ func transformKeys(json, arg string) string {
 	builder.WriteByte(']')
 	return builder.String()
 }
+
+// transformValues extracts the values from a JSON object and returns them as a JSON array of values.
+//
+// This function parses the input JSON string, and if the JSON is an object, it extracts all the values
+// from the key-value pairs and returns them as a JSON array of values. If the input JSON is already an array,
+// it simply returns the original JSON string. If the input does not contain a valid JSON object or array,
+// it returns an empty array ("[]").
+//
+// Parameters:
+//   - `json`: The JSON string to extract values from. It can be a JSON object or array.
+//   - `arg`: An optional argument that is not used in this function, but can be included for consistency
+//     with other transformation functions.
+//
+// Returns:
+//   - A string representing a JSON array containing the values extracted from the input JSON object.
+//     If the input JSON is already an array, it is returned as-is. If the input is invalid or empty,
+//     an empty array ("[]") is returned.
+//
+// Example Usage:
+//
+//	// Input JSON representing an object
+//	json := `{"first":"Aris","last":"Nguyen"}`
+//
+//	// Extract the values from the object
+//	values := transformValues(json, "")
+//	fmt.Println(values) // Output: ["Aris","Nguyen"]
+//
+//	// Input JSON representing an array
+//	jsonArray := `["apple", "banana", "cherry"]`
+//
+//	// Return the array as-is
+//	values := transformValues(jsonArray, "")
+//	fmt.Println(values) // Output: ["apple", "banana", "cherry"]
+//
+//	// Input JSON representing an invalid object
+//	invalidJson := `{"key":}` // Invalid JSON
+//
+//	// Return empty array for invalid JSON
+//	values := transformValues(invalidJson, "")
+//	fmt.Println(values) // Output: []
+//
+// Details:
+//   - The function first parses the input JSON string using `Parse`.
+//   - If the input is an array, the function directly returns the original string as it is.
+//   - If the input is an object, the function iterates over its key-value pairs, extracting only the values,
+//     and then constructs a JSON array of these values.
+//   - If the input JSON does not exist or is invalid, the function returns an empty JSON array ("[]").
+func transformValues(json, arg string) string {
+	ctx := Parse(json)
+	if !ctx.Exists() {
+		return "[]"
+	}
+	if ctx.IsArray() {
+		return json
+	}
+	var i int
+	var builder strings.Builder
+	builder.WriteByte('[')
+	ctx.Foreach(func(_, value Context) bool {
+		if i > 0 {
+			builder.WriteByte(',')
+		}
+		builder.WriteString(value.unprocessed)
+		i++
+		return true
+	})
+	builder.WriteByte(']')
+	return builder.String()
+}

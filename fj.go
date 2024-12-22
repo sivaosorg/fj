@@ -1630,38 +1630,12 @@ func init() {
 		"flatten": transformFlatten,
 		"join":    transformJoin,
 		"keys":    transformKeys,
-		"values":  modValues,
+		"values":  transformValues,
 		"tostr":   modToStr,
 		"fromstr": modFromStr,
 		"group":   modGroup,
 		"dig":     modDig,
 	}
-}
-
-// @values extracts the values from an object.
-//
-//	{"first":"Tom","last":"Smith"} -> ["Tom","Smith"]
-func modValues(json, arg string) string {
-	v := Parse(json)
-	if !v.Exists() {
-		return "[]"
-	}
-	if v.IsArray() {
-		return json
-	}
-	var out strings.Builder
-	out.WriteByte('[')
-	var i int
-	v.Foreach(func(_, value Context) bool {
-		if i > 0 {
-			out.WriteByte(',')
-		}
-		out.WriteString(value.unprocessed)
-		i++
-		return true
-	})
-	out.WriteByte(']')
-	return out.String()
 }
 
 // @fromstr converts a string to json
