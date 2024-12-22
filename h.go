@@ -3973,3 +3973,39 @@ func deepSearchRecursively(all []Context, parent Context, path string) []Context
 	}
 	return all
 }
+
+// escapeUnsafeChars processes a string `component` to escape characters that are not considered safe
+// according to the `isSafeKeyChar` function. It inserts a backslash (`\`) before each unsafe
+// character, ensuring that the resulting string contains only safe characters.
+//
+// Parameters:
+//   - `component`: A string that may contain unsafe characters that need to be escaped.
+//
+// Returns:
+//   - A new string with unsafe characters escaped by prefixing them with a backslash (`\`).
+//
+// Notes:
+//   - The function iterates through the input string and checks each character using the
+//     `isSafeKeyChar` function. When it encounters an unsafe character, it escapes it with a backslash.
+//   - Once an unsafe character is found, the function adds a backslash before each subsequent unsafe character
+//     and continues until the end of the string.
+//
+// Example:
+//
+//	component := "key-with$pecial*chars"
+//	escaped := escapeUnsafeChars(component) // escaped: "key-with\$pecial\*chars"
+func escapeUnsafeChars(component string) string {
+	for i := 0; i < len(component); i++ {
+		if !isSafeKeyChar(component[i]) {
+			noneComponent := []byte(component[:i])
+			for ; i < len(component); i++ {
+				if !isSafeKeyChar(component[i]) {
+					noneComponent = append(noneComponent, '\\')
+				}
+				noneComponent = append(noneComponent, component[i])
+			}
+			return string(noneComponent)
+		}
+	}
+	return component
+}
