@@ -1633,44 +1633,9 @@ func init() {
 		"values":  transformValues,
 		"string":  transformToString,
 		"json":    transformToJSON,
-		"group":   modGroup,
+		"group":   transformGroup,
 		"dig":     modDig,
 	}
-}
-
-func modGroup(json, arg string) string {
-	res := Parse(json)
-	if !res.IsObject() {
-		return ""
-	}
-	var all [][]byte
-	res.Foreach(func(key, value Context) bool {
-		if !value.IsArray() {
-			return true
-		}
-		var idx int
-		value.Foreach(func(_, value Context) bool {
-			if idx == len(all) {
-				all = append(all, []byte{})
-			}
-			all[idx] = append(all[idx], ("," + key.unprocessed + ":" + value.unprocessed)...)
-			idx++
-			return true
-		})
-		return true
-	})
-	var data []byte
-	data = append(data, '[')
-	for i, item := range all {
-		if i > 0 {
-			data = append(data, ',')
-		}
-		data = append(data, '{')
-		data = append(data, item[1:]...)
-		data = append(data, '}')
-	}
-	data = append(data, ']')
-	return string(data)
 }
 
 func modDig(json, arg string) string {

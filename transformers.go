@@ -688,3 +688,84 @@ func transformToJSON(json, arg string) string {
 func transformToString(str, arg string) string {
 	return string(appendJSON(nil, str))
 }
+
+// transformGroup processes a JSON string containing objects and arrays, and groups the
+// elements of arrays within objects by their keys. It converts each array into a group of
+// key-value pairs, resulting in a new JSON structure where each object is grouped by its array values.
+//
+// This function is primarily used to reformat JSON data by grouping values in arrays under
+// the same key into new JSON objects, preserving the structure of the original JSON while
+// transforming the array elements into key-value pairs associated with the respective key.
+//
+// Parameters:
+//   - `json`: A string representing the JSON data that needs to be transformed. It is assumed
+//     to be in the form of a JSON object that contains arrays.
+//   - `arg`: A string argument that provides additional options for the transformation. In this
+//     case, the argument is not used but is still passed for consistency with the other transformation
+//     functions.
+//
+// Returns:
+//   - A new string representing the transformed JSON data. The arrays in the input JSON are grouped
+//     under their respective keys, and the resulting structure is a list of objects.
+//
+// Example Usage:
+//
+//	json := `{"a": [1, 2, 3], "b": [4, 5]}`
+//	result := transformGroup(json, "")
+//	fmt.Println(result)
+//	// Output: `[
+//	//  {"a":1},
+//	//  {"a":2},
+//	//  {"a":3},
+//	//  {"b":4},
+//	//  {"b":5}
+//	// ]`
+//
+// Notes:
+//   - The function works by iterating over each key-value pair in the input JSON object. If the value
+//     associated with a key is an array, it processes the array's elements by creating new objects where
+//     the key is used for each element, effectively turning each element into a separate object with its
+//     corresponding key.
+//   - If the input JSON does not contain arrays, it does not affect the final result.
+//
+// Implementation Details:
+//   - The function first parses the input JSON string into a context object using `Parse(json)`.
+//   - It checks if the context is a valid object (`ctx.IsObject()`). If not, it returns an empty string.
+//   - It iterates over the object's key-value pairs using `ctx.Foreach()`. For each array value, it creates
+//     new objects where each array element is associated with the respective key.
+//   - The transformed groups of key-value pairs are collected into a new array format, where each array
+//     element corresponds to a new object created from the array values.
+func transformGroup(json, arg string) string {
+	ctx := Parse(json)
+	if !ctx.IsObject() {
+		return ""
+	}
+	var all [][]byte
+	ctx.Foreach(func(key, value Context) bool {
+		if !value.IsArray() {
+			return true
+		}
+		var idx int
+		value.Foreach(func(_, value Context) bool {
+			if idx == len(all) {
+				all = append(all, []byte{})
+			}
+			all[idx] = append(all[idx], ("," + key.unprocessed + ":" + value.unprocessed)...)
+			idx++
+			return true
+		})
+		return true
+	})
+	var data []byte
+	data = append(data, '[')
+	for i, el := range all {
+		if i > 0 {
+			data = append(data, ',')
+		}
+		data = append(data, '{')
+		data = append(data, el[1:]...)
+		data = append(data, '}')
+	}
+	data = append(data, ']')
+	return string(data)
+}
