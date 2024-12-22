@@ -3910,3 +3910,66 @@ func appendJSON(target []byte, s string) []byte {
 	}
 	return append(target, '"')
 }
+
+// deepSearchRecursively recursively traverses a JSON structure to find all matches
+// for a specified path within nested objects or arrays.
+//
+// This function performs a depth-first traversal of the JSON structure starting from
+// a given parent `Context`, and it collects all the `Context` results that match
+// the specified path. It works by first attempting to find a match for the path at
+// the current level and then recursively explores any nested objects or arrays to
+// find additional matches.
+//
+// Parameters:
+//   - `all`: A slice of `Context` that accumulates the results. It is initially empty
+//     and is populated with matching `Context` objects found during the traversal.
+//   - `parent`: The `Context` representing the current JSON element being processed.
+//     It acts as the starting point for the search in this recursive descent.
+//   - `path`: A string representing the JSON path to search for. This path is used
+//     to query the current level and to guide the search deeper into nested structures.
+//
+// Returns:
+//   - A slice of `Context` containing all the results that match the specified path.
+//     The slice is accumulated during the recursive descent, and all matches, including
+//     those found in nested objects and arrays, are added to the result.
+//
+// Example Usage:
+//
+//	json := `{
+//	  "store": {
+//	    "book": [
+//	      { "category": "fiction", "author": "J.K. Rowling", "title": "Harry Potter" },
+//	      { "category": "science", "author": "Stephen Hawking", "title": "A Brief History of Time" }
+//	    ],
+//	    "music": [
+//	      { "artist": "The Beatles", "album": "Abbey Road" },
+//	      { "artist": "Pink Floyd", "album": "The Wall" }
+//	    ]
+//	  }
+//	}`
+//
+//	parent := fj.Get(json, "store")
+//	results := deepSearchRecursively(nil, parent, "book.title")
+//
+//	// `results` will contain:
+//	// ["Harry Potter", "A Brief History of Time"]
+//	// The function searches for the "book.title" path in the store and collects all matches
+//	// found within the nested book array in the store object.
+//
+// Notes:
+//   - The function leverages recursive descent to explore nested JSON objects and arrays,
+//     ensuring that all levels of the structure are searched for matches.
+//   - If the `parent` element is an object or array, it will iterate over its elements and
+//     perform recursive descent for each of them.
+func deepSearchRecursively(all []Context, parent Context, path string) []Context {
+	if matched := parent.Get(path); matched.Exists() {
+		all = append(all, matched)
+	}
+	if parent.IsArray() || parent.IsObject() {
+		parent.Foreach(func(_, ctx Context) bool {
+			all = deepSearchRecursively(all, ctx, path)
+			return true
+		})
+	}
+	return all
+}

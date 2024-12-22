@@ -568,6 +568,215 @@ func (ctx Context) Get(path string) Context {
 	return q
 }
 
+// Paths returns the original fj paths for a Result where the Result came
+// from a simple query path that returns an array. For example, if the
+// `Get` function was called with a query path like:
+//
+//	fj.Get(json, "friends.#.first")
+//
+// This function will return the paths for each element in the resulting array,
+// formatted as a JSON array. The returned paths are the original query paths
+// for each item in the array, reflecting the specific positions of the elements
+// in the original JSON structure.
+//
+// The returned value will be in the form of a JSON array, such as:
+//
+//	["friends.0.first", "friends.1.first", "friends.2.first"]
+//
+// Parameters:
+//   - `json`: A string representing the original JSON used in the query.
+//     This is required for resolving the specific paths corresponding to
+//     each element in the resulting array.
+//
+// Returns:
+//   - A slice of strings (`[]string`), each containing the original path for
+//     an element in the result array.
+//   - If the result was a simple query that returns an array, each string
+//     will be a path to an individual element in the array.
+//   - If the paths cannot be determined (e.g., due to the result being
+//     from a multi-path, modifier, or a nested query), an empty slice will
+//     be returned.
+//
+// Notes:
+//   - The `Paths` function relies on the `indexes` field in the `Context`
+//     object. If the `indexes` field is `nil`, the function will return `nil`.
+//   - The function iterates over each element in the result (which is expected
+//     to be an array) and appends the corresponding path to the `paths` slice.
+//   - If the paths cannot be determined (e.g., due to the result coming from
+//     a multi-path or more complex query), an empty slice will be returned.
+//   - This function is useful for extracting the specific query paths for
+//     elements within a larger result array, providing a way to inspect or
+//     manipulate the paths of individual items.
+//
+// Example Usage:
+//
+//	json := `{
+//	  "friends": [
+//	    {"first": "Tom", "last": "Smith"},
+//	    {"first": "Sophia", "last": "Davis"},
+//	    {"first": "James", "last": "Miller"}
+//	  ]
+//	}`
+//
+//	result := fj.Get(json, "friends.#.first")
+//	paths := result.Paths(json)
+//
+//	// Output: ["friends.0.first", "friends.1.first", "friends.2.first"]
+func (ctx Context) Paths(json string) []string {
+	if ctx.indexes == nil {
+		return nil
+	}
+	paths := make([]string, 0, len(ctx.indexes))
+	ctx.Foreach(func(_, value Context) bool {
+		paths = append(paths, value.Path(json))
+		return true
+	})
+	if len(paths) != len(ctx.indexes) {
+		return nil
+	}
+	return paths
+}
+
+// Path returns the original fj path for a Result where the Result came
+// from a simple query path that returns a single value. For example, if the
+// `Get` function was called with a query path like:
+//
+//	fj.Get(json, "employees.#(first=Admin)")
+//
+// This function will return the original path that corresponds to the single
+// value in the result, formatted as a JSON path.
+//
+// The returned value will be in the form of a JSON string:
+//
+//	"employees.0"
+//
+// The param 'json' must be the original JSON used when calling Get.
+//
+// Returns:
+//   - A string representing the original path for the single value in the result.
+//   - If the paths cannot be determined (e.g., due to the result being from
+//     a multi-path, modifier, or a nested query), an empty string will be returned.
+//
+// Notes:
+//   - The `Path` function operates by tracing the position of the result within
+//     the original JSON string and reconstructing the query path based on this position.
+//   - The function checks the surrounding JSON context (such as whether the result
+//     is within an array or object) and extracts the relevant path information.
+//   - The path components are identified by traversing the string from the result's index
+//     and extracting the array or object keys that lead to the specific value.
+//
+// Example Usage:
+//
+//	json := `{
+//	  "employees": [
+//	    {"id": 1, "name": {"first": "John", "last": "Doe"}, "department": "HR"},
+//	    {"id": 2, "name": {"first": "Jane", "last": "Smith"}, "department": "Engineering"},
+//	    {"id": 3, "name": {"first": "Admin", "last": "Land"}, "department": "Marketing"},
+//	    {"id": 4, "name": {"first": "Emily", "last": "Jones"}, "department": "Engineering"}
+//	  ],
+//	  "companies": [
+//	    {"name": "TechCorp", "employees": [1, 2]},
+//	    {"name": "BizGroup", "employees": [3, 4]}
+//	  ]
+//	}`
+//
+//	// Get the employee's last name who works in the Engineering department
+//	result := fj.Get(json, "employees.#(department=Engineering).name.last")
+//	path := result.Path(json)
+//
+//	// Output: "employees.1.name.last"
+//
+//	// Explanation:
+//	// The `Path` function returns the path to the "last" name of the second
+//	// employee in the "employees" array who works in the "Engineering" department.
+//	// The path "employees.1.name.last" corresponds to the "Jane Smith" employee,
+//	// and the query specifically looks at the "last" name of that employee.
+func (ctx Context) Path(json string) string {
+	var path []byte
+	var components []string
+	i := ctx.index - 1
+	// Ensure the index is within bounds of the original JSON
+	if ctx.index+len(ctx.unprocessed) > len(json) {
+		// JSON cannot safely contain the Result.
+		goto fail
+	}
+	// Ensure that the unprocessed part matches the expected JSON structure
+	if !strings.HasPrefix(json[ctx.index:], ctx.unprocessed) {
+		// Result is not at the expected index in the JSON.
+		goto fail
+	}
+	// Traverse the JSON from the result's index to extract the path
+	for ; i >= 0; i-- {
+		if json[i] <= ' ' {
+			continue
+		}
+		if json[i] == ':' {
+			for ; i >= 0; i-- {
+				if json[i] != '"' {
+					continue
+				}
+				break
+			}
+			raw := reverseSquash(json[:i+1])
+			i = i - len(raw)
+			components = append(components, raw)
+			// Key obtained, now process the next component
+			raw = reverseSquash(json[:i+1])
+			i = i - len(raw)
+			i++ // Move index for next loop step
+		} else if json[i] == '{' {
+			// Encountered an open object, this is likely not a valid result
+			goto fail
+		} else if json[i] == ',' || json[i] == '[' {
+			// Inside an array, count the position of the element
+			var arrayIdx int
+			if json[i] == ',' {
+				arrayIdx++
+				i--
+			}
+			for ; i >= 0; i-- {
+				if json[i] == ':' {
+					// Unexpected colon indicates an object key
+					goto fail
+				} else if json[i] == ',' {
+					arrayIdx++
+				} else if json[i] == '[' {
+					components = append(components, strconv.Itoa(arrayIdx))
+					break
+				} else if json[i] == ']' || json[i] == '}' || json[i] == '"' {
+					raw := reverseSquash(json[:i+1])
+					i = i - len(raw) + 1
+				}
+			}
+		}
+	}
+	// If no components are found, return a default path for "this"
+	if len(components) == 0 {
+		if DisableModifiers {
+			goto fail
+		}
+		return "@this"
+	}
+	// Build the final path by appending each component
+	for i := len(components) - 1; i >= 0; i-- {
+		rawComplexity := Parse(components[i])
+		if !rawComplexity.Exists() {
+			goto fail
+		}
+		comp := EscapeUnsafeChars(rawComplexity.String())
+		path = append(path, '.')
+		path = append(path, comp...)
+	}
+	// Remove the leading dot and return the final path
+	if len(path) > 0 {
+		path = path[1:]
+	}
+	return string(path)
+fail:
+	// Return an empty string if the path could not be determined
+	return ""
+}
+
 // Less compares two Context values (tokens) and returns true if the first token is considered less than the second one.
 // It performs comparisons based on the type of the tokens and their respective values.
 // The comparison order follows: Null < False < Number < String < True < JSON.
@@ -1705,146 +1914,8 @@ func modGroup(json, arg string) string {
 	return string(data)
 }
 
-// Paths returns the original fj paths for a Result where the Result came
-// from a simple query path that returns an array, like:
-//
-//	bjson.Get(json, "friends.#.first")
-//
-// The returned value will be in the form of a JSON array:
-//
-//	["friends.0.first","friends.1.first","friends.2.first"]
-//
-// The param 'json' must be the original JSON used when calling Get.
-//
-// Returns an empty string if the paths cannot be determined, which can happen
-// when the Result came from a path that contained a multi-path, modifier,
-// or a nested query.
-func (ctx Context) Paths(json string) []string {
-	if ctx.indexes == nil {
-		return nil
-	}
-	paths := make([]string, 0, len(ctx.indexes))
-	ctx.Foreach(func(_, value Context) bool {
-		paths = append(paths, value.Path(json))
-		return true
-	})
-	if len(paths) != len(ctx.indexes) {
-		return nil
-	}
-	return paths
-}
-
-// Path returns the original fj path for a Result where the Result came
-// from a simple path that returns a single value, like:
-//
-//	bjson.Get(json, "friends.#(last=Murphy)")
-//
-// The returned value will be in the form of a JSON string:
-//
-//	"friends.0"
-//
-// The param 'json' must be the original JSON used when calling Get.
-//
-// Returns an empty string if the paths cannot be determined, which can happen
-// when the Result came from a path that contained a multi-path, modifier,
-// or a nested query.
-func (ctx Context) Path(json string) string {
-	var path []byte
-	var comps []string // raw components
-	i := ctx.index - 1
-	if ctx.index+len(ctx.unprocessed) > len(json) {
-		// JSON cannot safely contain Result.
-		goto fail
-	}
-	if !strings.HasPrefix(json[ctx.index:], ctx.unprocessed) {
-		// Result is not at the JSON index as expected.
-		goto fail
-	}
-	for ; i >= 0; i-- {
-		if json[i] <= ' ' {
-			continue
-		}
-		if json[i] == ':' {
-			// inside of object, get the key
-			for ; i >= 0; i-- {
-				if json[i] != '"' {
-					continue
-				}
-				break
-			}
-			raw := reverseSquash(json[:i+1])
-			i = i - len(raw)
-			comps = append(comps, raw)
-			// key gotten, now squash the rest
-			raw = reverseSquash(json[:i+1])
-			i = i - len(raw)
-			i++ // increment the index for next loop step
-		} else if json[i] == '{' {
-			// Encountered an open object. The original result was probably an
-			// object key.
-			goto fail
-		} else if json[i] == ',' || json[i] == '[' {
-			// inside of an array, count the position
-			var arrIdx int
-			if json[i] == ',' {
-				arrIdx++
-				i--
-			}
-			for ; i >= 0; i-- {
-				if json[i] == ':' {
-					// Encountered an unexpected colon. The original result was
-					// probably an object key.
-					goto fail
-				} else if json[i] == ',' {
-					arrIdx++
-				} else if json[i] == '[' {
-					comps = append(comps, strconv.Itoa(arrIdx))
-					break
-				} else if json[i] == ']' || json[i] == '}' || json[i] == '"' {
-					raw := reverseSquash(json[:i+1])
-					i = i - len(raw) + 1
-				}
-			}
-		}
-	}
-	if len(comps) == 0 {
-		if DisableModifiers {
-			goto fail
-		}
-		return "@this"
-	}
-	for i := len(comps) - 1; i >= 0; i-- {
-		rawComplexity := Parse(comps[i])
-		if !rawComplexity.Exists() {
-			goto fail
-		}
-		comp := EscapeUnsafeChars(rawComplexity.String())
-		path = append(path, '.')
-		path = append(path, comp...)
-	}
-	if len(path) > 0 {
-		path = path[1:]
-	}
-	return string(path)
-fail:
-	return ""
-}
-
-func parseRecursiveDescent(all []Context, parent Context, path string) []Context {
-	if res := parent.Get(path); res.Exists() {
-		all = append(all, res)
-	}
-	if parent.IsArray() || parent.IsObject() {
-		parent.Foreach(func(_, val Context) bool {
-			all = parseRecursiveDescent(all, val, path)
-			return true
-		})
-	}
-	return all
-}
-
 func modDig(json, arg string) string {
-	all := parseRecursiveDescent(nil, Parse(json), arg)
+	all := deepSearchRecursively(nil, Parse(json), arg)
 	var out []byte
 	out = append(out, '[')
 	for i, res := range all {
