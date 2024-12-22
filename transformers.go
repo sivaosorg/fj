@@ -655,3 +655,36 @@ func transformToJSON(json, arg string) string {
 	}
 	return Parse(json).String()
 }
+
+// transformToString converts a regular string into a valid JSON string format.
+//
+// This function takes an input string and converts it into a JSON-encoded string
+// by wrapping it in double quotes and escaping any necessary characters (such as
+// quotes or backslashes) to ensure the resulting string adheres to JSON encoding rules.
+//
+// Parameters:
+//   - `str`: The input string to be converted into JSON string format.
+//   - `arg`: This parameter is not used in this function but is present for consistency
+//     with the function signature, which might be useful for future extensions or
+//     compatibility with other transformations.
+//
+// Returns:
+//   - A string that is a valid JSON representation of the input `str`, with special
+//     characters properly escaped (e.g., double quotes, backslashes, control characters).
+//
+// Example Usage:
+//
+//	str := "Hello \"world\"\nLine break!"
+//	result := transformToString(str, "")
+//	fmt.Println(result)
+//	// Output: "\"Hello \\\"world\\\"\nLine break!\""
+//
+// Notes:
+//   - This function calls `appendJSON` to handle the conversion of the string into a
+//     valid JSON string format, ensuring proper escaping of special characters (like
+//     double quotes and newlines) to maintain valid JSON syntax.
+//   - The `arg` parameter is included for consistency with other transformation functions
+//     that may require it, though it does not affect the behavior of this specific function.
+func transformToString(str, arg string) string {
+	return string(appendJSON(nil, str))
+}

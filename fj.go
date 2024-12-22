@@ -1631,18 +1631,11 @@ func init() {
 		"join":    transformJoin,
 		"keys":    transformKeys,
 		"values":  transformValues,
-		"tostr":   modToStr,
-		"toJSON":  transformToJSON,
+		"string":  transformToString,
+		"json":    transformToJSON,
 		"group":   modGroup,
 		"dig":     modDig,
 	}
-}
-
-// @tostr converts a string to json
-//
-//	{"id":1023,"name":"alert"} -> "{\"id\":1023,\"name\":\"alert\"}"
-func modToStr(str, arg string) string {
-	return string(appendJSON(nil, str))
 }
 
 func modGroup(json, arg string) string {
