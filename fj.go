@@ -1622,11 +1622,11 @@ func (t Type) String() string {
 
 func init() {
 	jsonTransformers = map[string]func(json, arg string) string{
+		"this":    transformDefault,
 		"pretty":  transformPretty,
 		"minify":  transformMinify,
-		"reverse": modReverse,
-		"this":    modThis,
-		"flatten": modFlatten,
+		"reverse": transformReverse,
+		"flatten": transformFlatten,
 		"join":    modJoin,
 		"valid":   modValid,
 		"keys":    modKeys,
@@ -1636,104 +1636,6 @@ func init() {
 		"group":   modGroup,
 		"dig":     modDig,
 	}
-}
-
-// @this returns the current element. Can be used to retrieve the root element.
-func modThis(json, arg string) string {
-	return json
-}
-
-// @reverse reverses array elements or root object members.
-func modReverse(json, arg string) string {
-	res := Parse(json)
-	if res.IsArray() {
-		var values []Context
-		res.Foreach(func(_, value Context) bool {
-			values = append(values, value)
-			return true
-		})
-		out := make([]byte, 0, len(json))
-		out = append(out, '[')
-		for i, j := len(values)-1, 0; i >= 0; i, j = i-1, j+1 {
-			if j > 0 {
-				out = append(out, ',')
-			}
-			out = append(out, values[i].unprocessed...)
-		}
-		out = append(out, ']')
-		return fromBytes2Str(out)
-	}
-	if res.IsObject() {
-		var keyValues []Context
-		res.Foreach(func(key, value Context) bool {
-			keyValues = append(keyValues, key, value)
-			return true
-		})
-		out := make([]byte, 0, len(json))
-		out = append(out, '{')
-		for i, j := len(keyValues)-2, 0; i >= 0; i, j = i-2, j+1 {
-			if j > 0 {
-				out = append(out, ',')
-			}
-			out = append(out, keyValues[i+0].unprocessed...)
-			out = append(out, ':')
-			out = append(out, keyValues[i+1].unprocessed...)
-		}
-		out = append(out, '}')
-		return fromBytes2Str(out)
-	}
-	return json
-}
-
-// @flatten an array with child arrays.
-//
-//	[1,[2],[3,4],[5,[6,7]]] -> [1,2,3,4,5,[6,7]]
-//
-// The {"deep":true} arg can be provide for deep flattening.
-//
-//	[1,[2],[3,4],[5,[6,7]]] -> [1,2,3,4,5,6,7]
-//
-// The original json is returned when the json is not an array.
-func modFlatten(json, arg string) string {
-	res := Parse(json)
-	if !res.IsArray() {
-		return json
-	}
-	var deep bool
-	if arg != "" {
-		Parse(arg).Foreach(func(key, value Context) bool {
-			if key.String() == "deep" {
-				deep = value.Bool()
-			}
-			return true
-		})
-	}
-	var out []byte
-	out = append(out, '[')
-	var idx int
-	res.Foreach(func(_, value Context) bool {
-		var raw string
-		if value.IsArray() {
-			if deep {
-				raw = removeOuterBraces(modFlatten(value.unprocessed, arg))
-			} else {
-				raw = removeOuterBraces(value.unprocessed)
-			}
-		} else {
-			raw = value.unprocessed
-		}
-		raw = strings.TrimSpace(raw)
-		if len(raw) > 0 {
-			if idx > 0 {
-				out = append(out, ',')
-			}
-			out = append(out, raw...)
-			idx++
-		}
-		return true
-	})
-	out = append(out, ']')
-	return fromBytes2Str(out)
 }
 
 // @keys extracts the keys from an object.
