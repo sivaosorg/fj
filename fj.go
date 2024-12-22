@@ -45,7 +45,7 @@ func EscapeUnsafeChars(component string) string {
 	return component
 }
 
-// AppendJSONString converts a given string into a valid JSON string format
+// AppendJSON converts a given string into a valid JSON string format
 // and appends it to the provided byte slice `dst`.
 //
 // This function escapes special characters in the input string `s` to ensure
@@ -80,7 +80,7 @@ func EscapeUnsafeChars(component string) string {
 //
 //	dst := []byte("Current JSON: ")
 //	s := "Hello \"world\"\nLine break!"
-//	result := AppendJSONString(dst, s)
+//	result := AppendJSON(dst, s)
 //	// result: []byte(`Current JSON: "Hello \"world\"\nLine break!"`)
 //
 // Notes:
@@ -89,7 +89,7 @@ func EscapeUnsafeChars(component string) string {
 //   - It ensures that the resulting JSON string is safe and adheres to
 //     encoding rules for use in various contexts such as web APIs or
 //     configuration files.
-func AppendJSONString(target []byte, s string) []byte {
+func AppendJSON(target []byte, s string) []byte {
 	target = append(target, make([]byte, len(s)+2)...)
 	target = append(target[:len(target)-len(s)-2], '"')
 	for i := 0; i < len(s); i++ {
@@ -387,35 +387,103 @@ func (ctx Context) Time() time.Time {
 	return v
 }
 
-// Array returns back an array of values.
-// If the result represents a null value or is non-existent, then an empty
-// array will be returned.
-// If the result is not a JSON array, the return value will be an
-// array containing one result.
-func (t Context) Array() []Context {
-	if t.kind == Null {
+// Array returns an array of `Context` values derived from the current `Context`.
+//
+// Behavior:
+//   - If the current `Context` represents a `Null` value, it returns an empty array.
+//   - If the current `Context` is not a JSON array, it returns an array containing itself as a single element.
+//   - If the current `Context` is a JSON array, it parses and returns the array's elements.
+//
+// Returns:
+//   - []Context: A slice of `Context` values representing the array elements.
+//
+// Example Usage:
+//
+//	ctx := Context{kind: Null}
+//	arr := ctx.Array()
+//	// arr: []
+//
+//	ctx = Context{kind: JSON, unprocessed: "[1, 2, 3]"}
+//	arr = ctx.Array()
+//	// arr: [Context, Context, Context]
+//
+// Notes:
+//   - This function uses `parseJSONElements` internally to extract array elements.
+//   - If the JSON is malformed or does not represent an array, the behavior may vary.
+func (ctx Context) Array() []Context {
+	if ctx.kind == Null {
 		return []Context{}
 	}
-	if !t.IsArray() {
-		return []Context{t}
+	if !ctx.IsArray() {
+		return []Context{ctx}
 	}
-	r := t.arrayOrMap('[', false)
+	r := ctx.parseJSONElements('[', false)
 	return r.ArrayResult
 }
 
-// IsObject returns true if the result value is a JSON object.
-func (t Context) IsObject() bool {
-	return t.kind == JSON && len(t.unprocessed) > 0 && t.unprocessed[0] == '{'
+// IsObject checks if the current `Context` represents a JSON object.
+//
+// A value is considered a JSON object if:
+//   - The `kind` is `JSON`.
+//   - The `unprocessed` string starts with the `{` character.
+//
+// Returns:
+//   - bool: Returns `true` if the `Context` is a JSON object; otherwise, `false`.
+//
+// Example Usage:
+//
+//	ctx := Context{kind: JSON, unprocessed: "{"key": "value"}"}
+//	isObj := ctx.IsObject()
+//	// isObj: true
+//
+//	ctx = Context{kind: JSON, unprocessed: "[1, 2, 3]"}
+//	isObj = ctx.IsObject()
+//	// isObj: false
+func (ctx Context) IsObject() bool {
+	return ctx.kind == JSON && len(ctx.unprocessed) > 0 && ctx.unprocessed[0] == '{'
 }
 
-// IsArray returns true if the result value is a JSON array.
-func (t Context) IsArray() bool {
-	return t.kind == JSON && len(t.unprocessed) > 0 && t.unprocessed[0] == '['
+// IsArray checks if the current `Context` represents a JSON array.
+//
+// A value is considered a JSON array if:
+//   - The `kind` is `JSON`.
+//   - The `unprocessed` string starts with the `[` character.
+//
+// Returns:
+//   - bool: Returns `true` if the `Context` is a JSON array; otherwise, `false`.
+//
+// Example Usage:
+//
+//	ctx := Context{kind: JSON, unprocessed: "[1, 2, 3]"}
+//	isArr := ctx.IsArray()
+//	// isArr: true
+//
+//	ctx = Context{kind: JSON, unprocessed: "{"key": "value"}"}
+//	isArr = ctx.IsArray()
+//	// isArr: false
+func (ctx Context) IsArray() bool {
+	return ctx.kind == JSON && len(ctx.unprocessed) > 0 && ctx.unprocessed[0] == '['
 }
 
-// IsBool returns true if the result value is a JSON boolean.
-func (t Context) IsBool() bool {
-	return t.kind == True || t.kind == False
+// IsBool checks if the current `Context` represents a JSON boolean value.
+//
+// A value is considered a JSON boolean if:
+//   - The `kind` is `True` or `False`.
+//
+// Returns:
+//   - bool: Returns `true` if the `Context` is a JSON boolean; otherwise, `false`.
+//
+// Example Usage:
+//
+//	ctx := Context{kind: True}
+//	isBool := ctx.IsBool()
+//	// isBool: true
+//
+//	ctx = Context{kind: String, strings: "true"}
+//	isBool = ctx.IsBool()
+//	// isBool: false
+func (ctx Context) IsBool() bool {
+	return ctx.kind == True || ctx.kind == False
 }
 
 // ForEach iterates through values.
@@ -501,32 +569,142 @@ func (t Context) ForEach(iterator func(key, value Context) bool) {
 	}
 }
 
-// Map returns back a map of values. The result should be a JSON object.
-// If the result is not a JSON object, the return value will be an empty map.
-func (t Context) Map() map[string]Context {
-	if t.kind != JSON {
-		return map[string]Context{}
+// Map returns a map of values extracted from a JSON object.
+//
+// The function assumes that the `Context` represents a JSON object. It parses the JSON object and returns a map
+// where the keys are strings, and the values are `Context` elements representing the corresponding JSON values.
+//
+// If the `Context` does not represent a valid JSON object, the function will return an empty map.
+//
+// Parameters:
+//   - ctx: The `Context` instance that holds the raw JSON string. The function checks if the context represents
+//     a JSON object and processes it accordingly.
+//
+// Returns:
+//   - map[string]Context: A map where the keys are strings (representing the keys in the JSON object), and
+//     the values are `Context` instances representing the corresponding JSON values. If the context does not represent
+//     a valid JSON object, a nil is returned.
+//
+// Example Usage:
+//
+//	ctx := Context{kind: JSON, unprocessed: "{\"key1\": \"value1\", \"key2\": 42}"}
+//	result := ctx.Map()
+//	// result.OpMap contains the parsed key-value pairs: {"key1": "value1", "key2": 42}
+//
+// Notes:
+//   - The function calls `parseJSONElements` with the expected JSON object indicator ('{') to parse the JSON.
+//   - If the `Context` is not a valid JSON object, it returns an empty map, which can be used to safely handle errors.
+func (ctx Context) Map() map[string]Context {
+	if ctx.kind != JSON {
+		return nil
 	}
-	r := t.arrayOrMap('{', false)
-	return r.OpMap
+	e := ctx.parseJSONElements('{', false)
+	return e.OpMap
 }
 
-// Get searches result for the specified path.
-// The result should be a JSON array or object.
-func (t Context) Get(path string) Context {
-	r := Get(t.unprocessed, path)
-	if r.indexes != nil {
-		for i := 0; i < len(r.indexes); i++ {
-			r.indexes[i] += t.index
+// Get searches for a specified path within a JSON structure and returns the corresponding result.
+//
+// This function allows you to search for a specific path in the JSON structure and retrieve the corresponding
+// value as a `Context`. The path is represented as a string and can be used to navigate nested arrays or objects.
+//
+// The `path` parameter specifies the JSON path to search for, and the function will attempt to retrieve the value
+// associated with that path. The result is returned as a `Context`, which contains information about the matched
+// JSON value, including its type, string representation, numeric value, and index in the original JSON.
+//
+// Parameters:
+//   - path: A string representing the path in the JSON structure to search for. The path may include array indices
+//     and object keys separated by dots or brackets (e.g., "user.name", "items[0].price").
+//
+// Returns:
+//   - Context: A `Context` instance containing the result of the search. The `Context` may represent various types of
+//     JSON values (e.g., string, number, object, array). If no match is found, the `Context` will be empty.
+//
+// Example Usage:
+//
+//	ctx := Context{kind: JSON, unprocessed: "{\"user\": {\"name\": \"John\"}, \"items\": [1, 2, 3]}"}
+//	result := ctx.Get("user.name")
+//	// result.strings will contain "John", representing the value found at the "user.name" path.
+//
+// Notes:
+//   - The function uses the `Get` function (presumably another function) to process the `unprocessed` JSON string
+//     and search for the specified path.
+//   - The function adjusts the indices of the results (if any) to account for the original position of the `Context`
+//     in the JSON string.
+func (ctx Context) Get(path string) Context {
+	q := Get(ctx.unprocessed, path)
+	if q.indexes != nil {
+		for i := 0; i < len(q.indexes); i++ {
+			q.indexes[i] += ctx.index
 		}
 	} else {
-		r.index += t.index
+		q.index += ctx.index
 	}
-	return r
+	return q
 }
 
-func (t Context) arrayOrMap(vc byte, valueSize bool) (result queryContext) {
-	var json = t.unprocessed
+// parseJSONElements processes a JSON string (from the `Context`) and attempts to parse it as either a JSON array or a JSON object.
+//
+// The function examines the raw JSON string and determines whether it represents an array or an object by looking at
+// the first character ('[' for arrays, '{' for objects). It then processes the content accordingly and returns the
+// parsed results as a `queryContext`, which contains either an array or an object, depending on the type of the JSON structure.
+//
+// Parameters:
+//   - vc: A byte representing the expected JSON structure type to parse ('[' for arrays, '{' for objects).
+//   - valueSize: A boolean flag that indicates whether intermediary values should be stored as raw types (`true`)
+//     or parsed into `Context` objects (`false`).
+//
+// Returns:
+//   - queryContext: A `queryContext` struct containing the parsed elements. This can include:
+//   - ArrayResult: A slice of `Context` elements for arrays.
+//   - ArrayIns: A slice of `interface{}` elements for arrays when `valueSize` is true.
+//   - OpMap: A map of string keys to `Context` values for objects when `valueSize` is false.
+//   - OpIns: A map of string keys to `interface{}` values for objects when `valueSize` is true.
+//   - valueN: The byte value indicating the start of the JSON array or object ('[' or '{').
+//
+// Function Process:
+//
+//  1. **Identifying JSON Structure**:
+//     The function starts by checking the first non-whitespace character in the JSON string to determine if it's an object (`{`)
+//     or an array (`[`). If the expected structure is detected, the function proceeds accordingly.
+//
+//  2. **Creating Appropriate Containers**:
+//     Based on the type of JSON being parsed (array or object), the function initializes an empty slice or map
+//     to store the parsed elements. The `OpMap` or `OpIns` is used for objects, while the `ArrayResult` or `ArrayIns`
+//     is used for arrays. If `valueSize` is `true`, the values will be stored as raw types (`interface{}`), otherwise,
+//     they will be stored as `Context` objects.
+//
+//  3. **Parsing JSON Elements**:
+//     The function then loops through the JSON string, identifying and parsing individual elements. Each element could
+//     be a string, number, boolean, `null`, array, or object. For each identified element, it is added to the appropriate
+//     container (array or map) as determined by the type of JSON being processed.
+//
+//  4. **Handling Key-Value Pairs (for Objects)**:
+//     If parsing an object (denoted by `{`), the function identifies key-value pairs and alternates between storing the
+//     key (as a string) and its corresponding value (as a `Context` object or raw type) in the `OpMap` or `OpIns` container.
+//
+//  5. **Assigning Indices**:
+//     After parsing the elements, the function assigns the correct index to each element in the `ArrayResult` based on
+//     the `indexes` from the parent `Context`. If the number of elements in the array does not match the expected
+//     number of indexes, the indices are reset to 0 for each element.
+//
+// Example Usage:
+//
+//	ctx := Context{kind: JSON, unprocessed: "[1, 2, 3]"}
+//	result := ctx.parseJSONElements('[', false)
+//	// result.ArrayResult contains the parsed `Context` elements for the array.
+//
+//	ctx = Context{kind: JSON, unprocessed: "{\"key\": \"value\"}"}
+//	result = ctx.parseJSONElements('{', false)
+//	// result.OpMap contains the parsed key-value pair for the object.
+//
+// Notes:
+//   - The function handles various JSON value types, including numbers, strings, booleans, null, and nested arrays/objects.
+//   - The function uses internal helper functions like `getNumeric`, `squash`, `lowerPrefix`, and `unescapeJSONEncoded`
+//     to parse the raw JSON string into appropriate `Context` elements.
+//   - The `valueSize` flag controls whether the elements are stored as raw types (`interface{}`) or as `Context` objects.
+//   - If `valueSize` is `false`, the result will contain structured `Context` elements, which can be used for further processing or queries.
+func (ctx Context) parseJSONElements(vc byte, valueSize bool) (result queryContext) {
+	var json = ctx.unprocessed
 	var i int
 	var value Context
 	var count int
@@ -571,7 +749,6 @@ func (t Context) arrayOrMap(vc byte, valueSize bool) (result queryContext) {
 		if json[i] <= ' ' {
 			continue
 		}
-		// get next value
 		if json[i] == ']' || json[i] == '}' {
 			break
 		}
@@ -605,7 +782,7 @@ func (t Context) arrayOrMap(vc byte, valueSize bool) (result queryContext) {
 			value.unprocessed, value.strings = unescapeJSONEncoded(json[i:])
 			value.numeric = 0
 		}
-		value.index = i + t.index
+		value.index = i + ctx.index
 
 		i += len(value.unprocessed) - 1
 
@@ -633,14 +810,14 @@ func (t Context) arrayOrMap(vc byte, valueSize bool) (result queryContext) {
 		}
 	}
 end:
-	if t.indexes != nil {
-		if len(t.indexes) != len(result.ArrayResult) {
+	if ctx.indexes != nil {
+		if len(ctx.indexes) != len(result.ArrayResult) {
 			for i := 0; i < len(result.ArrayResult); i++ {
 				result.ArrayResult[i].index = 0
 			}
 		} else {
 			for i := 0; i < len(result.ArrayResult); i++ {
-				result.ArrayResult[i].index = t.indexes[i]
+				result.ArrayResult[i].index = ctx.indexes[i]
 			}
 		}
 	}
@@ -736,7 +913,7 @@ func (t Context) Value() interface{} {
 	case Number:
 		return t.numeric
 	case JSON:
-		r := t.arrayOrMap(0, true)
+		r := t.parseJSONElements(0, true)
 		if r.valueN == '{' {
 			return r.OpIns
 		} else if r.valueN == '[' {
@@ -843,14 +1020,14 @@ func Get(json, path string) Context {
 									if sub.name[0] == '"' && Valid(sub.name) {
 										b = append(b, sub.name...)
 									} else {
-										b = AppendJSONString(b, sub.name)
+										b = AppendJSON(b, sub.name)
 									}
 								} else {
 									last := lastSegment(sub.path)
 									if isValidName(last) {
-										b = AppendJSONString(b, last)
+										b = AppendJSON(b, last)
 									} else {
-										b = AppendJSONString(b, "_")
+										b = AppendJSON(b, "_")
 									}
 								}
 								b = append(b, ':')
@@ -1338,7 +1515,7 @@ func modFromStr(json, arg string) string {
 //
 //	{"id":1023,"name":"alert"} -> "{\"id\":1023,\"name\":\"alert\"}"
 func modToStr(str, arg string) string {
-	return string(AppendJSONString(nil, str))
+	return string(AppendJSON(nil, str))
 }
 
 func modGroup(json, arg string) string {
