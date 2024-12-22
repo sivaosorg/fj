@@ -497,7 +497,7 @@ func IsValidJSONBytes(json []byte) bool {
 	return ok
 }
 
-// AddModifier binds a custom modifier function to the fj syntax.
+// AddTransformer binds a custom modifier function to the fj syntax.
 //
 // This function allows users to register custom modifier functions that can be applied
 // to JSON data in the fj query language. A modifier is a transformation function that
@@ -520,7 +520,7 @@ func IsValidJSONBytes(json []byte) bool {
 //	}
 //
 //	// Add the custom modifier to the fj system with the name "uppercase".
-//	fj.AddModifier("uppercase", uppercaseModifier)
+//	fj.AddTransformer("uppercase", uppercaseModifier)
 //
 //	// Now you can use the "uppercase" modifier in a query:
 //	json := `{
@@ -543,11 +543,11 @@ func IsValidJSONBytes(json []byte) bool {
 //     the initialization phase, before performing any queries that rely on custom modifiers.
 //   - Once registered, the modifier can be used in fj queries to transform the JSON data
 //     according to the logic defined in the `fn` function.
-func AddModifier(name string, fn func(json, arg string) string) {
+func AddTransformer(name string, fn func(json, arg string) string) {
 	jsonTransformers[name] = fn
 }
 
-// IsModifierRegistered checks whether a specified modifier has been registered in the fj system.
+// IsTransformerRegistered checks whether a specified modifier has been registered in the fj system.
 //
 // This function allows users to verify if a modifier with a given name has already
 // been added to the `fj` query system. Modifiers are custom functions that transform
@@ -563,7 +563,7 @@ func AddModifier(name string, fn func(json, arg string) string) {
 // Example Usage:
 //
 //	// Check if a custom modifier named "uppercase" has already been registered.
-//	if fj.IsModifierRegistered("uppercase") {
+//	if fj.IsTransformerRegistered("uppercase") {
 //	  fmt.Println("The 'uppercase' modifier is available.")
 //	} else {
 //	  fmt.Println("The 'uppercase' modifier has not been registered.")
@@ -573,7 +573,7 @@ func AddModifier(name string, fn func(json, arg string) string) {
 //   - This function does not modify the `modifiers` map; it only queries it to check
 //     for the existence of the specified modifier.
 //   - It is thread-safe when used only to query the existence of a modifier.
-func IsModifierRegistered(name string) bool {
+func IsTransformerRegistered(name string) bool {
 	if unify4g.IsEmpty(name) {
 		return false
 	}
