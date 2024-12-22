@@ -486,21 +486,113 @@ func (ctx Context) IsBool() bool {
 	return ctx.kind == True || ctx.kind == False
 }
 
-// ForEach iterates through values.
-// If the result represents a non-existent value, then no values will be
-// iterated. If the result is an Object, the iterator will pass the key and
-// value of each item. If the result is an Array, the iterator will only pass
-// the value of each item. If the result is not a JSON array or object, the
-// iterator will pass back one value equal to the result.
-func (t Context) ForEach(iterator func(key, value Context) bool) {
-	if !t.Exists() {
+// Exists returns true if the value exists (i.e., it is not Null and contains data).
+//
+// Example Usage:
+//
+//	if fj.Get(json, "user.name").Exists() {
+//	  println("value exists")
+//	}
+//
+// Returns:
+//   - bool: Returns true if the value is not null and contains non-empty data, otherwise returns false.
+func (ctx Context) Exists() bool {
+	return ctx.kind != Null || len(ctx.unprocessed) != 0
+}
+
+// Value returns the corresponding Go type for the JSON value represented by the Context.
+//
+// The function returns one of the following types based on the JSON value:
+//   - bool for JSON booleans (True or False)
+//   - float64 for JSON numbers
+//   - string for JSON string literals
+//   - nil for JSON null
+//   - map[string]interface{} for JSON objects
+//   - []interface{} for JSON arrays
+//
+// Example Usage:
+//
+//	value := ctx.Value()
+//	switch v := value.(type) {
+//	  case bool:
+//	    fmt.Println("Boolean:", v)
+//	  case float64:
+//	    fmt.Println("Number:", v)
+//	  case string:
+//	    fmt.Println("String:", v)
+//	  case nil:
+//	    fmt.Println("Null value")
+//	  case map[string]interface{}:
+//	    fmt.Println("Object:", v)
+//	  case []interface{}:
+//	    fmt.Println("Array:", v)
+//	}
+//
+// Returns:
+//
+//   - interface{}: Returns the corresponding Go type for the JSON value, or nil if the type is not recognized.
+func (ctx Context) Value() interface{} {
+	if ctx.kind == String {
+		return ctx.strings
+	}
+	switch ctx.kind {
+	default:
+		return nil
+	case False:
+		return false
+	case Number:
+		return ctx.numeric
+	case JSON:
+		r := ctx.parseJSONElements(0, true)
+		if r.valueN == '{' {
+			return r.OpIns
+		} else if r.valueN == '[' {
+			return r.ArrayIns
+		}
+		return nil
+	case True:
+		return true
+	}
+}
+
+// ForEach iterates through the values of a JSON object or array, applying the provided iterator function.
+//
+// If the `Context` represents a non-existent value (Null or invalid JSON), no iteration occurs.
+// For JSON objects, the iterator receives both the key and value of each item.
+// For JSON arrays, the iterator receives only the value of each item.
+// If the `Context` is not an array or object, the iterator is called once with the whole value.
+//
+// Example Usage:
+//
+//	ctx.ForEach(func(key, value Context) bool {
+//	  if key.strings != "" {
+//	    fmt.Printf("Key: %s, Value: %v\n", key.strings, value)
+//	  } else {
+//	    fmt.Printf("Value: %v\n", value)
+//	  }
+//	  return true // Continue iteration
+//	})
+//
+// Parameters:
+//   - iterator: A function that receives a `key` (for objects) and `value` (for both objects and arrays).
+//     The function should return `true` to continue iteration or `false` to stop.
+//
+// Notes:
+//   - If the result is a JSON object, the iterator receives key-value pairs.
+//   - If the result is a JSON array, the iterator receives only the values.
+//   - If the result is not an object or array, the iterator is invoked once with the value.
+//
+// Returns:
+//   - None. The iteration continues until all items are processed or the iterator returns `false`.
+func (ctx Context) ForEach(iterator func(key, value Context) bool) {
+	if !ctx.Exists() {
 		return
 	}
-	if t.kind != JSON {
-		iterator(Context{}, t)
+	if ctx.kind != JSON {
+		iterator(Context{}, ctx)
 		return
 	}
-	json := t.unprocessed
+	json := ctx.unprocessed
 	var obj bool
 	var i int
 	var key, value Context
@@ -540,7 +632,7 @@ func (t Context) ForEach(iterator func(key, value Context) bool) {
 				key.strings = str[1 : len(str)-1]
 			}
 			key.unprocessed = str
-			key.index = s + t.index
+			key.index = s + ctx.index
 		} else {
 			key.numeric += 1
 		}
@@ -555,12 +647,12 @@ func (t Context) ForEach(iterator func(key, value Context) bool) {
 		if !ok {
 			return
 		}
-		if t.indexes != nil {
-			if idx < len(t.indexes) {
-				value.index = t.indexes[idx]
+		if ctx.indexes != nil {
+			if idx < len(ctx.indexes) {
+				value.index = ctx.indexes[idx]
 			}
 		} else {
-			value.index = s + t.index
+			value.index = s + ctx.index
 		}
 		if !iterator(key, value) {
 			return
@@ -883,51 +975,9 @@ func ParseBytes(json []byte) Context {
 	return Parse(string(json))
 }
 
-// Exists returns true if value exists.
-//
-//	 if bjson.Get(json, "name.last").Exists(){
-//			println("value exists")
-//	 }
-func (t Context) Exists() bool {
-	return t.kind != Null || len(t.unprocessed) != 0
-}
-
-// Value returns one of these types:
-//
-//	bool, for JSON booleans
-//	float64, for JSON numbers
-//	Number, for JSON numbers
-//	string, for JSON string literals
-//	nil, for JSON null
-//	map[string]interface{}, for JSON objects
-//	[]interface{}, for JSON arrays
-func (t Context) Value() interface{} {
-	if t.kind == String {
-		return t.strings
-	}
-	switch t.kind {
-	default:
-		return nil
-	case False:
-		return false
-	case Number:
-		return t.numeric
-	case JSON:
-		r := t.parseJSONElements(0, true)
-		if r.valueN == '{' {
-			return r.OpIns
-		} else if r.valueN == '[' {
-			return r.ArrayIns
-		}
-		return nil
-	case True:
-		return true
-	}
-}
-
 // ForEachLine iterates through lines of JSON as specified by the JSON Lines
 // format (http://jsonlines.org/).
-// Each line is returned as a bjson Result.
+// Each line is returned as a fj Result.
 func ForEachLine(json string, iterator func(line Context) bool) {
 	var res Context
 	var i int
