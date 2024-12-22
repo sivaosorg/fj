@@ -304,7 +304,7 @@ func transformFlatten(json, arg string) string {
 		return json
 	}
 	var deep bool
-	if unify4g.IsNoneEmpty(arg) {
+	if unify4g.IsNotEmpty(arg) {
 		Parse(arg).Foreach(func(key, value Context) bool {
 			if key.String() == "deep" {
 				deep = value.Bool()
@@ -338,4 +338,107 @@ func transformFlatten(json, arg string) string {
 	})
 	out = append(out, ']')
 	return fromBytes2Str(out)
+}
+
+// transformJoin merges multiple JSON objects into a single object.
+// If the input is an array of JSON objects, it combines their key-value pairs
+// into one object. Duplicate keys can be preserved or discarded based on the
+// configuration provided in the `arg` parameter.
+//
+// Parameters:
+//   - `json`: A string representing a JSON array, where each element is a JSON object.
+//     The objects will be merged into a single object.
+//   - `arg`: A string containing a JSON configuration that can specify whether
+//     duplicate keys should be preserved. If `arg` is provided and contains
+//     the key `preserve` set to `true`, duplicate keys will be kept in the output object.
+//
+// Returns:
+//   - A string representing the merged JSON object. If the input is not an array
+//     of JSON objects, the function returns the original `json` string unchanged.
+//
+// Example Usage:
+//
+//	// Input JSON (merge objects with duplicate keys discarded)
+//	json := `[{"first":"Tom","age":37},{"age":41}]`
+//	mergedJSON := transformJoin(json, "")
+//	fmt.Println(mergedJSON)
+//	// Output: {"first":"Tom","age":41}
+//
+//	// Input JSON (merge objects with duplicate keys preserved)
+//	json := `[{"first":"Tom","age":37},{"age":41}]`
+//	mergedJSONWithDupes := transformJoin(json, "{\"preserve\": true}")
+//	fmt.Println(mergedJSONWithDupes)
+//	// Output: {"first":"Tom","age":37,"age":41}
+//
+// Notes:
+//   - If the input `json` is not a valid array of JSON objects, the function returns
+//     the original input string unchanged.
+//   - The `preserve` option controls whether duplicate keys should be kept in the merged object.
+//     If `preserve` is `false` (or absent), only the last occurrence of each key is kept.
+//   - The function uses `removeOuterBraces` to remove any extraneous brackets around JSON objects
+//     before merging their contents.
+//
+// Implementation Details:
+//   - If the `preserve` option is set to `true`, all key-value pairs from the objects are
+//     appended to the resulting object, even if keys are repeated.
+//   - If `preserve` is `false`, the function will deduplicate keys by selecting the last
+//     value for each key across all objects in the array. The keys are also added in stable
+//     order based on their appearance in the input objects.
+func transformJoin(json, arg string) string {
+	ctx := Parse(json)
+	if !ctx.IsArray() {
+		return json
+	}
+	var preserve bool
+	if unify4g.IsNotEmpty(arg) {
+		Parse(arg).Foreach(func(key, value Context) bool {
+			if key.String() == "preserve" {
+				preserve = value.Bool()
+			}
+			return true
+		})
+	}
+	var target []byte
+	target = append(target, '{')
+	if preserve { // preserve duplicate keys.
+		var idx int
+		ctx.Foreach(func(_, value Context) bool {
+			if !value.IsObject() {
+				return true
+			}
+			if idx > 0 {
+				target = append(target, ',')
+			}
+			target = append(target, removeOuterBraces(value.unprocessed)...)
+			idx++
+			return true
+		})
+	} else { // deduplicate keys and generate an object with stable ordering.
+		var keys []Context
+		keyVal := make(map[string]Context)
+		ctx.Foreach(func(_, value Context) bool {
+			if !value.IsObject() {
+				return true
+			}
+			value.Foreach(func(key, value Context) bool {
+				k := key.String()
+				if _, ok := keyVal[k]; !ok {
+					keys = append(keys, key)
+				}
+				keyVal[k] = value
+				return true
+			})
+			return true
+		})
+		for i := 0; i < len(keys); i++ {
+			if i > 0 {
+				target = append(target, ',')
+			}
+			target = append(target, keys[i].unprocessed...)
+			target = append(target, ':')
+			target = append(target, keyVal[keys[i].String()].unprocessed...)
+		}
+	}
+	target = append(target, '}')
+	return fromBytes2Str(target)
 }

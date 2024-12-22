@@ -1627,7 +1627,7 @@ func init() {
 		"minify":  transformMinify,
 		"reverse": transformReverse,
 		"flatten": transformFlatten,
-		"join":    modJoin,
+		"join":    transformJoin,
 		"valid":   modValid,
 		"keys":    modKeys,
 		"values":  modValues,
@@ -1690,80 +1690,6 @@ func modValues(json, arg string) string {
 	})
 	out.WriteByte(']')
 	return out.String()
-}
-
-// @join multiple objects into a single object.
-//
-//	[{"first":"Tom"},{"last":"Smith"}] -> {"first","Tom","last":"Smith"}
-//
-// The arg can be "true" to specify that duplicate keys should be preserved.
-//
-//	[{"first":"Tom","age":37},{"age":41}] -> {"first","Tom","age":37,"age":41}
-//
-// Without preserved keys:
-//
-//	[{"first":"Tom","age":37},{"age":41}] -> {"first","Tom","age":41}
-//
-// The original json is returned when the json is not an object.
-func modJoin(json, arg string) string {
-	res := Parse(json)
-	if !res.IsArray() {
-		return json
-	}
-	var preserve bool
-	if arg != "" {
-		Parse(arg).Foreach(func(key, value Context) bool {
-			if key.String() == "preserve" {
-				preserve = value.Bool()
-			}
-			return true
-		})
-	}
-	var out []byte
-	out = append(out, '{')
-	if preserve {
-		// Preserve duplicate keys.
-		var idx int
-		res.Foreach(func(_, value Context) bool {
-			if !value.IsObject() {
-				return true
-			}
-			if idx > 0 {
-				out = append(out, ',')
-			}
-			out = append(out, removeOuterBraces(value.unprocessed)...)
-			idx++
-			return true
-		})
-	} else {
-		// Deduplicate keys and generate an object with stable ordering.
-		var keys []Context
-		keyVal := make(map[string]Context)
-		res.Foreach(func(_, value Context) bool {
-			if !value.IsObject() {
-				return true
-			}
-			value.Foreach(func(key, value Context) bool {
-				k := key.String()
-				if _, ok := keyVal[k]; !ok {
-					keys = append(keys, key)
-				}
-				keyVal[k] = value
-				return true
-			})
-			return true
-		})
-		for i := 0; i < len(keys); i++ {
-			if i > 0 {
-				out = append(out, ',')
-			}
-			out = append(out, keys[i].unprocessed...)
-			out = append(out, ':')
-			out = append(out, keyVal[keys[i].String()].unprocessed...)
-		}
-	}
-	out = append(out, '}')
-	return fromBytes2Str(out)
 }
 
 // @valid ensures that the json is valid before moving on. An empty string is
