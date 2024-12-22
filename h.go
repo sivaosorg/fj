@@ -3821,3 +3821,92 @@ func matchesQueryConditions(dp *metadata, value Context) bool {
 	}
 	return false
 }
+
+// appendJSON converts a given string into a valid JSON string format
+// and appends it to the provided byte slice `dst`.
+//
+// This function escapes special characters in the input string `s` to ensure
+// that it adheres to the JSON string encoding rules, such as escaping double
+// quotes, backslashes, and control characters. Additionally, it handles UTF-8
+// characters and appends them in their proper encoded format.
+//
+// Parameters:
+//   - dst: A byte slice to which the encoded JSON string will be appended.
+//   - s: The input string to be converted into JSON string format.
+//
+// Returns:
+//   - []byte: The resulting byte slice containing the original content of `dst`
+//     with the JSON-encoded string appended.
+//
+// Details:
+//   - The function begins by appending space for the string `s` and wrapping
+//     it in double quotes.
+//   - It iterates through the input string `s` character by character and checks
+//     for specific cases where escaping or additional encoding is required:
+//   - Control characters (`\n`, `\r`, `\t`) are replaced with their escape
+//     sequences (`\\n`, `\\r`, `\\t`).
+//   - Characters like `<`, `>`, and `&` are escaped using Unicode notation
+//     to ensure the resulting JSON string is safe for embedding in HTML or XML.
+//   - Backslashes (`\`) and double quotes (`"`) are escaped with a preceding
+//     backslash (`\\`).
+//   - UTF-8 characters are properly encoded, and unsupported characters or
+//     decoding errors are replaced with the Unicode replacement character
+//     (`\ufffd`).
+//
+// Example Usage:
+//
+//	dst := []byte("Current JSON: ")
+//	s := "Hello \"world\"\nLine break!"
+//	result := appendJSON(dst, s)
+//	// result: []byte(`Current JSON: "Hello \"world\"\nLine break!"`)
+//
+// Notes:
+//   - This function is useful for building JSON-encoded strings dynamically
+//     without allocating new memory for each operation.
+//   - It ensures that the resulting JSON string is safe and adheres to
+//     encoding rules for use in various contexts such as web APIs or
+//     configuration files.
+func appendJSON(target []byte, s string) []byte {
+	target = append(target, make([]byte, len(s)+2)...)
+	target = append(target[:len(target)-len(s)-2], '"')
+	for i := 0; i < len(s); i++ {
+		if s[i] < ' ' {
+			target = append(target, '\\')
+			switch s[i] {
+			case '\n':
+				target = append(target, 'n')
+			case '\r':
+				target = append(target, 'r')
+			case '\t':
+				target = append(target, 't')
+			default:
+				target = append(target, 'u')
+				target = appendHex16(target, uint16(s[i]))
+			}
+		} else if s[i] == '>' || s[i] == '<' || s[i] == '&' {
+			target = append(target, '\\', 'u')
+			target = appendHex16(target, uint16(s[i]))
+		} else if s[i] == '\\' {
+			target = append(target, '\\', '\\')
+		} else if s[i] == '"' {
+			target = append(target, '\\', '"')
+		} else if s[i] > 127 {
+			r, n := utf8.DecodeRuneInString(s[i:]) // read utf8 character
+			if n == 0 {
+				break
+			}
+			if r == utf8.RuneError && n == 1 {
+				target = append(target, `\ufffd`...)
+			} else if r == '\u2028' || r == '\u2029' {
+				target = append(target, `\u202`...)
+				target = append(target, hexDigits[r&0xF])
+			} else {
+				target = append(target, s[i:i+n]...)
+			}
+			i = i + n - 1
+		} else {
+			target = append(target, s[i])
+		}
+	}
+	return append(target, '"')
+}

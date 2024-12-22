@@ -4,175 +4,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/sivaosorg/unify4g"
 )
-
-// EscapeUnsafeChars processes a string `component` to escape characters that are not considered safe
-// according to the `isSafeKeyChar` function. It inserts a backslash (`\`) before each unsafe
-// character, ensuring that the resulting string contains only safe characters.
-//
-// Parameters:
-//   - `component`: A string that may contain unsafe characters that need to be escaped.
-//
-// Returns:
-//   - A new string with unsafe characters escaped by prefixing them with a backslash (`\`).
-//
-// Notes:
-//   - The function iterates through the input string and checks each character using the
-//     `isSafeKeyChar` function. When it encounters an unsafe character, it escapes it with a backslash.
-//   - Once an unsafe character is found, the function adds a backslash before each subsequent unsafe character
-//     and continues until the end of the string.
-//
-// Example:
-//
-//	component := "key-with$pecial*chars"
-//	escaped := EscapeUnsafeChars(component) // escaped: "key-with\$pecial\*chars"
-func EscapeUnsafeChars(component string) string {
-	for i := 0; i < len(component); i++ {
-		if !isSafeKeyChar(component[i]) {
-			noneComponent := []byte(component[:i])
-			for ; i < len(component); i++ {
-				if !isSafeKeyChar(component[i]) {
-					noneComponent = append(noneComponent, '\\')
-				}
-				noneComponent = append(noneComponent, component[i])
-			}
-			return string(noneComponent)
-		}
-	}
-	return component
-}
-
-// AppendJSON converts a given string into a valid JSON string format
-// and appends it to the provided byte slice `dst`.
-//
-// This function escapes special characters in the input string `s` to ensure
-// that it adheres to the JSON string encoding rules, such as escaping double
-// quotes, backslashes, and control characters. Additionally, it handles UTF-8
-// characters and appends them in their proper encoded format.
-//
-// Parameters:
-//   - dst: A byte slice to which the encoded JSON string will be appended.
-//   - s: The input string to be converted into JSON string format.
-//
-// Returns:
-//   - []byte: The resulting byte slice containing the original content of `dst`
-//     with the JSON-encoded string appended.
-//
-// Details:
-//   - The function begins by appending space for the string `s` and wrapping
-//     it in double quotes.
-//   - It iterates through the input string `s` character by character and checks
-//     for specific cases where escaping or additional encoding is required:
-//   - Control characters (`\n`, `\r`, `\t`) are replaced with their escape
-//     sequences (`\\n`, `\\r`, `\\t`).
-//   - Characters like `<`, `>`, and `&` are escaped using Unicode notation
-//     to ensure the resulting JSON string is safe for embedding in HTML or XML.
-//   - Backslashes (`\`) and double quotes (`"`) are escaped with a preceding
-//     backslash (`\\`).
-//   - UTF-8 characters are properly encoded, and unsupported characters or
-//     decoding errors are replaced with the Unicode replacement character
-//     (`\ufffd`).
-//
-// Example Usage:
-//
-//	dst := []byte("Current JSON: ")
-//	s := "Hello \"world\"\nLine break!"
-//	result := AppendJSON(dst, s)
-//	// result: []byte(`Current JSON: "Hello \"world\"\nLine break!"`)
-//
-// Notes:
-//   - This function is useful for building JSON-encoded strings dynamically
-//     without allocating new memory for each operation.
-//   - It ensures that the resulting JSON string is safe and adheres to
-//     encoding rules for use in various contexts such as web APIs or
-//     configuration files.
-func AppendJSON(target []byte, s string) []byte {
-	target = append(target, make([]byte, len(s)+2)...)
-	target = append(target[:len(target)-len(s)-2], '"')
-	for i := 0; i < len(s); i++ {
-		if s[i] < ' ' {
-			target = append(target, '\\')
-			switch s[i] {
-			case '\n':
-				target = append(target, 'n')
-			case '\r':
-				target = append(target, 'r')
-			case '\t':
-				target = append(target, 't')
-			default:
-				target = append(target, 'u')
-				target = appendHex16(target, uint16(s[i]))
-			}
-		} else if s[i] == '>' || s[i] == '<' || s[i] == '&' {
-			target = append(target, '\\', 'u')
-			target = appendHex16(target, uint16(s[i]))
-		} else if s[i] == '\\' {
-			target = append(target, '\\', '\\')
-		} else if s[i] == '"' {
-			target = append(target, '\\', '"')
-		} else if s[i] > 127 {
-			r, n := utf8.DecodeRuneInString(s[i:]) // read utf8 character
-			if n == 0 {
-				break
-			}
-			if r == utf8.RuneError && n == 1 {
-				target = append(target, `\ufffd`...)
-			} else if r == '\u2028' || r == '\u2029' {
-				target = append(target, `\u202`...)
-				target = append(target, hexDigits[r&0xF])
-			} else {
-				target = append(target, s[i:i+n]...)
-			}
-			i = i + n - 1
-		} else {
-			target = append(target, s[i])
-		}
-	}
-	return append(target, '"')
-}
-
-// String provides a string representation of the `Type` enumeration.
-//
-// This method converts the `Type` value into a human-readable string.
-// It is particularly useful for debugging or logging purposes.
-//
-// Mapping of `Type` values to strings:
-//   - Null: "Null"
-//   - False: "False"
-//   - Number: "Number"
-//   - String: "String"
-//   - True: "True"
-//   - JSON: "JSON"
-//   - Default (unknown type): An empty string is returned.
-//
-// Returns:
-//   - string: A string representation of the `Type` value.
-//
-// Example Usage:
-//
-//	var t Type = True
-//	fmt.Println(t.String())  // Output: "True"
-func (t Type) String() string {
-	switch t {
-	default:
-		return ""
-	case Null:
-		return "Null"
-	case False:
-		return "False"
-	case Number:
-		return "Number"
-	case String:
-		return "String"
-	case True:
-		return "True"
-	case JSON:
-		return "JSON"
-	}
-}
 
 // Kind returns the JSON type of the Context.
 // It provides the specific type of the JSON value, such as String, Number, Object, etc.
@@ -555,7 +389,40 @@ func (ctx Context) Value() interface{} {
 	}
 }
 
-// ForEach iterates through the values of a JSON object or array, applying the provided iterator function.
+// Map returns a map of values extracted from a JSON object.
+//
+// The function assumes that the `Context` represents a JSON object. It parses the JSON object and returns a map
+// where the keys are strings, and the values are `Context` elements representing the corresponding JSON values.
+//
+// If the `Context` does not represent a valid JSON object, the function will return an empty map.
+//
+// Parameters:
+//   - ctx: The `Context` instance that holds the raw JSON string. The function checks if the context represents
+//     a JSON object and processes it accordingly.
+//
+// Returns:
+//   - map[string]Context: A map where the keys are strings (representing the keys in the JSON object), and
+//     the values are `Context` instances representing the corresponding JSON values. If the context does not represent
+//     a valid JSON object, a nil is returned.
+//
+// Example Usage:
+//
+//	ctx := Context{kind: JSON, unprocessed: "{\"key1\": \"value1\", \"key2\": 42}"}
+//	result := ctx.Map()
+//	// result.OpMap contains the parsed key-value pairs: {"key1": "value1", "key2": 42}
+//
+// Notes:
+//   - The function calls `parseJSONElements` with the expected JSON object indicator ('{') to parse the JSON.
+//   - If the `Context` is not a valid JSON object, it returns an empty map, which can be used to safely handle errors.
+func (ctx Context) Map() map[string]Context {
+	if ctx.kind != JSON {
+		return nil
+	}
+	e := ctx.parseJSONElements('{', false)
+	return e.OpMap
+}
+
+// Foreach iterates through the values of a JSON object or array, applying the provided iterator function.
 //
 // If the `Context` represents a non-existent value (Null or invalid JSON), no iteration occurs.
 // For JSON objects, the iterator receives both the key and value of each item.
@@ -564,7 +431,7 @@ func (ctx Context) Value() interface{} {
 //
 // Example Usage:
 //
-//	ctx.ForEach(func(key, value Context) bool {
+//	ctx.Foreach(func(key, value Context) bool {
 //	  if key.strings != "" {
 //	    fmt.Printf("Key: %s, Value: %v\n", key.strings, value)
 //	  } else {
@@ -584,7 +451,7 @@ func (ctx Context) Value() interface{} {
 //
 // Returns:
 //   - None. The iteration continues until all items are processed or the iterator returns `false`.
-func (ctx Context) ForEach(iterator func(key, value Context) bool) {
+func (ctx Context) Foreach(iterator func(key, value Context) bool) {
 	if !ctx.Exists() {
 		return
 	}
@@ -661,39 +528,6 @@ func (ctx Context) ForEach(iterator func(key, value Context) bool) {
 	}
 }
 
-// Map returns a map of values extracted from a JSON object.
-//
-// The function assumes that the `Context` represents a JSON object. It parses the JSON object and returns a map
-// where the keys are strings, and the values are `Context` elements representing the corresponding JSON values.
-//
-// If the `Context` does not represent a valid JSON object, the function will return an empty map.
-//
-// Parameters:
-//   - ctx: The `Context` instance that holds the raw JSON string. The function checks if the context represents
-//     a JSON object and processes it accordingly.
-//
-// Returns:
-//   - map[string]Context: A map where the keys are strings (representing the keys in the JSON object), and
-//     the values are `Context` instances representing the corresponding JSON values. If the context does not represent
-//     a valid JSON object, a nil is returned.
-//
-// Example Usage:
-//
-//	ctx := Context{kind: JSON, unprocessed: "{\"key1\": \"value1\", \"key2\": 42}"}
-//	result := ctx.Map()
-//	// result.OpMap contains the parsed key-value pairs: {"key1": "value1", "key2": 42}
-//
-// Notes:
-//   - The function calls `parseJSONElements` with the expected JSON object indicator ('{') to parse the JSON.
-//   - If the `Context` is not a valid JSON object, it returns an empty map, which can be used to safely handle errors.
-func (ctx Context) Map() map[string]Context {
-	if ctx.kind != JSON {
-		return nil
-	}
-	e := ctx.parseJSONElements('{', false)
-	return e.OpMap
-}
-
 // Get searches for a specified path within a JSON structure and returns the corresponding result.
 //
 // This function allows you to search for a specific path in the JSON structure and retrieve the corresponding
@@ -732,6 +566,51 @@ func (ctx Context) Get(path string) Context {
 		q.index += ctx.index
 	}
 	return q
+}
+
+// Less compares two Context values (tokens) and returns true if the first token is considered less than the second one.
+// It performs comparisons based on the type of the tokens and their respective values.
+// The comparison order follows: Null < False < Number < String < True < JSON.
+// This function also supports case-insensitive comparisons for String type tokens based on the caseSensitive parameter.
+//
+// Parameters:
+//   - token: The other Context token to compare with the current one (t).
+//   - caseSensitive: A boolean flag that indicates whether the comparison for String type tokens should be case-sensitive.
+//   - If true, the comparison is case-sensitive (i.e., "a" < "b" but "A" < "b").
+//   - If false, the comparison is case-insensitive (i.e., "a" == "A").
+//
+// Returns:
+//   - true: If the current token (t) is considered less than the provided token.
+//   - false: If the current token (t) is not considered less than the provided token.
+//
+// The function first compares the `kind` of both tokens, which represents their JSON types.
+// If both tokens have the same kind, it proceeds to compare based on their specific types:
+// - For String types, it compares the strings based on the case-sensitive flag.
+// - For Number types, it compares the numeric values directly.
+// - For other types, it compares the unprocessed JSON values as raw strings (this could be useful for types like Null, Boolean, etc.).
+//
+// Example usage:
+//
+//	context1 := Context{kind: String, strings: "apple"}
+//	context2 := Context{kind: String, strings: "banana"}
+//	result := context1.Less(context2, true) // This would return true because "apple" < "banana" and case-sensitive comparison is used.
+func (ctx Context) Less(token Context, caseSensitive bool) bool {
+	if ctx.kind < token.kind {
+		return true
+	}
+	if ctx.kind > token.kind {
+		return false
+	}
+	if ctx.kind == String {
+		if caseSensitive {
+			return ctx.strings < token.strings
+		}
+		return lessInsensitive(ctx.strings, token.strings)
+	}
+	if ctx.kind == Number {
+		return ctx.numeric < token.numeric
+	}
+	return ctx.unprocessed < token.unprocessed
 }
 
 // parseJSONElements processes a JSON string (from the `Context`) and attempts to parse it as either a JSON array or a JSON object.
@@ -916,19 +795,92 @@ end:
 	return
 }
 
-// Parse parses the json and returns a result.
+// String provides a string representation of the `Type` enumeration.
 //
-// This function expects that the json is well-formed, and does not validate.
-// Invalid json will not panic, but it may return back unexpected results.
-// If you are consuming JSON from an unpredictable source then you may want to
-// use the Valid function first.
+// This method converts the `Type` value into a human-readable string.
+// It is particularly useful for debugging or logging purposes.
+//
+// Mapping of `Type` values to strings:
+//   - Null: "Null"
+//   - False: "False"
+//   - Number: "Number"
+//   - String: "String"
+//   - True: "True"
+//   - JSON: "JSON"
+//   - Default (unknown type): An empty string is returned.
+//
+// Returns:
+//   - string: A string representation of the `Type` value.
+//
+// Example Usage:
+//
+//	var t Type = True
+//	fmt.Println(t.String())  // Output: "True"
+func (t Type) String() string {
+	switch t {
+	default:
+		return ""
+	case Null:
+		return "Null"
+	case False:
+		return "False"
+	case Number:
+		return "Number"
+	case String:
+		return "String"
+	case True:
+		return "True"
+	case JSON:
+		return "JSON"
+	}
+}
+
+// Parse parses a JSON string and returns a Context representing the parsed value.
+//
+// This function processes the input JSON string and attempts to determine the type of the value it represents.
+// It handles objects, arrays, numbers, strings, booleans, and null values. The function does not validate whether
+// the JSON is well-formed, and instead returns a Context object that represents the first valid JSON element found
+// in the string. Invalid JSON may result in unexpected behavior, so for input from unpredictable sources, consider
+// using the `Valid` function first.
+//
+// Parameters:
+//   - `json`: A string containing the JSON data to be parsed. This function expects well-formed JSON and does not
+//     perform comprehensive validation.
+//
+// Returns:
+//   - A `Context` that represents the parsed JSON element. The `Context` contains details about the type, value,
+//     and position of the JSON element, including raw and unprocessed string data.
+//
+// Notes:
+//   - The function attempts to determine the type of the JSON element by inspecting the first character in the
+//     string. It supports the following types: Object (`{`), Array (`[`), Number, String (`"`), Boolean (`true` / `false`),
+//     and Null (`null`).
+//   - The function sets the `unprocessed` field of the `Context` to the raw JSON string for further processing, and
+//     sets the `kind` field to represent the type of the value (e.g., `String`, `Number`, `True`, `False`, `JSON`, `Null`).
+//
+// Example Usage:
+//
+//	json := "{\"name\": \"John\", \"age\": 30}"
+//	ctx := Parse(json)
+//	fmt.Println(ctx.kind) // Output: JSON (if the input starts with '{')
+//
+//	json := "12345"
+//	ctx := Parse(json)
+//	fmt.Println(ctx.kind) // Output: Number (if the input is a numeric value)
+//
+//	json := "\"Hello, World!\""
+//	ctx := Parse(json)
+//	fmt.Println(ctx.kind) // Output: String (if the input is a string)
+//
+// Returns:
+//   - `Context`: The parsed result, which may represent an object, array, string, number, boolean, or null.
 func Parse(json string) Context {
 	var value Context
 	i := 0
 	for ; i < len(json); i++ {
 		if json[i] == '{' || json[i] == '[' {
 			value.kind = JSON
-			value.unprocessed = json[i:] // just take the entire raw
+			value.unprocessed = json[i:]
 			break
 		}
 		if json[i] <= ' ' {
@@ -969,66 +921,88 @@ func Parse(json string) Context {
 	return value
 }
 
-// ParseBytes parses the json and returns a result.
-// If working with bytes, this method preferred over Parse(string(data))
+// ParseBytes parses a JSON byte slice and returns a Context representing the parsed value.
+//
+// This function is a wrapper around the `Parse` function, designed specifically for handling JSON data
+// in the form of a byte slice. It converts the byte slice into a string and then calls `Parse` to process
+// the JSON data. If you're working with raw JSON data as bytes, using this method is preferred over
+// manually converting the bytes to a string and passing it to `Parse`.
+//
+// Parameters:
+//   - `json`: A byte slice containing the JSON data to be parsed.
+//
+// Returns:
+//   - A `Context` representing the parsed JSON element, similar to the behavior of `Parse`. The `Context`
+//     contains information about the type, value, and position of the JSON element, including the raw and
+//     unprocessed string data.
+//
+// Example Usage:
+//
+//	json := []byte("{\"name\": \"Alice\", \"age\": 25}")
+//	ctx := ParseBytes(json)
+//	fmt.Println(ctx.kind) // Output: JSON (if the input is an object)
+//
+// Returns:
+//   - `Context`: The parsed result, representing the parsed JSON element, such as an object, array, string,
+//     number, boolean, or null.
 func ParseBytes(json []byte) Context {
 	return Parse(string(json))
 }
 
-// ForEachLine iterates through lines of JSON as specified by the JSON Lines
-// format (http://jsonlines.org/).
-// Each line is returned as a fj Result.
-func ForEachLine(json string, iterator func(line Context) bool) {
-	var res Context
-	var i int
-	for {
-		i, res, _ = parseJSONAny(json, i, true)
-		if !res.Exists() {
-			break
-		}
-		if !iterator(res) {
-			return
-		}
-	}
-}
-
-// Get searches json for the specified path.
-// A path is in dot syntax, such as "name.last" or "age".
-// When the value is found it's returned immediately.
+// Get searches for a specified path within the provided JSON string and returns the corresponding value as a Context.
+// The path is provided in dot notation, where each segment represents a key or index. The function supports wildcards
+// (`*` and `?`), array indexing, and special characters like '#' to access array lengths or child paths. The function
+// will return the first matching result it finds along the specified path.
 //
-// A path is a series of keys separated by a dot.
-// A key may contain special wildcard characters '*' and '?'.
-// To access an array value use the index as the key.
-// To get the number of elements in an array or to access a child path, use
-// the '#' character.
-// The dot and wildcard character can be escaped with '\'.
+// Path Syntax:
+// - Dot notation: "name.last" or "age" for direct key lookups.
+// - Wildcards: "*" matches any key, "?" matches a single character.
+// - Array indexing: "children.0" accesses the first item in the "children" array.
+// - The '#' character returns the number of elements in an array (e.g., "children.#" returns the array length).
+// - The dot (`.`) and wildcard characters (`*`, `?`) can be escaped with a backslash (`\`).
 //
-//	{
-//	  "name": {"first": "Tom", "last": "Anderson"},
-//	  "age":37,
-//	  "children": ["Sara","Alex","Jack"],
+// Example Usage:
+//
+//	json := `{
+//	  "user": {"firstName": "Alice", "lastName": "Johnson"},
+//	  "age": 29,
+//	  "siblings": ["Ben", "Clara", "David"],
 //	  "friends": [
-//	    {"first": "James", "last": "Murphy"},
-//	    {"first": "Roger", "last": "Craig"}
-//	  ]
-//	}
-//	"name.last"          >> "Anderson"
-//	"age"                >> 37
-//	"children"           >> ["Sara","Alex","Jack"]
-//	"children.#"         >> 3
-//	"children.1"         >> "Alex"
-//	"child*.2"           >> "Jack"
-//	"children.0"         >> "Sara"
-//	"friends.#.first"    >> ["James","Roger"]
+//	    {"firstName": "Tom", "lastName": "Smith"},
+//	    {"firstName": "Sophia", "lastName": "Davis"}
+//	  ],
+//	  "address": {"city": "New York", "zipCode": "10001"}
+//	}`
 //
-// This function expects that the json is well-formed, and does not validate.
-// Invalid json will not panic, but it may return back unexpected results.
-// If you are consuming JSON from an unpredictable source then you may want to
-// use the Valid function first.
+//	// Examples of Get function with paths:
+//	Get(json, "user.lastName")        // Returns: "Johnson"
+//	Get(json, "age")                  // Returns: 29
+//	Get(json, "siblings.#")           // Returns: 3 (number of siblings)
+//	Get(json, "siblings.1")           // Returns: "Clara" (second sibling)
+//	Get(json, "friends.#.firstName")  // Returns: ["Tom", "Sophia"]
+//	Get(json, "address.zipCode")      // Returns: "10001"
+//
+// Details:
+//   - The function does not validate JSON format but expects well-formed input.
+//     Invalid JSON may result in unexpected behavior.
+//   - Modifiers (e.g., `@` for adjusting paths) and special sub-selectors (e.g., `[` and `{`) are supported and processed
+//     in the path before extracting values.
+//   - For complex structures, the function analyzes the provided path, handles nested arrays or objects, and returns
+//     a Context containing the value found at the specified location.
+//
+// Parameters:
+//   - `json`: A string containing the JSON data to search through.
+//   - `path`: A string representing the path to the desired value, using dot notation or other special characters as described.
+//
+// Returns:
+//   - `Context`: A Context object containing the value found at the specified path, including information such as the
+//     type (`kind`), the raw JSON string (`unprocessed`), and the parsed value if available (e.g., `strings` for strings).
+//
+// Notes:
+//   - If the path is not found, the returned Context will reflect this with an empty or null value.
 func Get(json, path string) Context {
 	if len(path) > 1 {
 		if (path[0] == '@' && !DisableModifiers) || path[0] == '!' {
-			// possible modifier
 			var ok bool
 			var cPath string
 			var cJson string
@@ -1049,8 +1023,7 @@ func Get(json, path string) Context {
 			}
 		}
 		if path[0] == '[' || path[0] == '{' {
-			// using a sub-selector path
-			kind := path[0]
+			kind := path[0] // using a sub-selector path
 			var ok bool
 			var subs []subSelector
 			subs, path, ok = analyzeSubSelectors(path)
@@ -1070,14 +1043,14 @@ func Get(json, path string) Context {
 									if sub.name[0] == '"' && Valid(sub.name) {
 										b = append(b, sub.name...)
 									} else {
-										b = AppendJSON(b, sub.name)
+										b = appendJSON(b, sub.name)
 									}
 								} else {
 									last := lastSegment(sub.path)
 									if isValidName(last) {
-										b = AppendJSON(b, last)
+										b = appendJSON(b, last)
 									} else {
-										b = AppendJSON(b, "_")
+										b = appendJSON(b, "_")
 									}
 								}
 								b = append(b, ':')
@@ -1136,6 +1109,44 @@ func Get(json, path string) Context {
 	return c.value
 }
 
+// GetMul searches json for multiple paths.
+// The return value is a slice of `Context` objects, where the number of items
+// will be equal to the number of input paths. Each `Context` represents the value
+// extracted for the corresponding path.
+//
+// Parameters:
+//   - `json`: A string containing the JSON data to search through.
+//   - `path`: A variadic list of paths to search for within the JSON data.
+//
+// Returns:
+//   - A slice of `Context` objects, one for each path provided in the `path` parameter.
+//
+// Notes:
+//   - The function will return a `Context` for each path, and the order of the `Context`
+//     objects in the result will match the order of the paths provided.
+//
+// Example:
+//
+//	json := `{
+//	  "user": {"firstName": "Alice", "lastName": "Johnson"},
+//	  "age": 29,
+//	  "siblings": ["Ben", "Clara", "David"],
+//	  "friends": [
+//	    {"firstName": "Tom", "lastName": "Smith"},
+//	    {"firstName": "Sophia", "lastName": "Davis"}
+//	  ]
+//	}`
+//	paths := []string{"user.lastName", "age", "siblings.#", "friends.#.firstName"}
+//	results := GetMul(json, paths...)
+//	// The result will contain Contexts for each path: ["Johnson", 29, 3, ["Tom", "Sophia"]]
+func GetMul(json string, path ...string) []Context {
+	ctx := make([]Context, len(path))
+	for i, path := range path {
+		ctx[i] = Get(json, path)
+	}
+	return ctx
+}
+
 // GetBytes searches the provided JSON byte slice for the specified path and returns a `Context`
 // representing the extracted data. This method is preferred over `Get(string(data), path)` when working
 // with JSON data in byte slice format, as it directly operates on the byte slice, minimizing memory
@@ -1167,79 +1178,123 @@ func GetBytes(json []byte, path string) Context {
 	return getBytes(json, path)
 }
 
-// Less compares two Context values (tokens) and returns true if the first token is considered less than the second one.
-// It performs comparisons based on the type of the tokens and their respective values.
-// The comparison order follows: Null < False < Number < String < True < JSON.
-// This function also supports case-insensitive comparisons for String type tokens based on the caseSensitive parameter.
+// GetMulBytes searches json for multiple paths in the provided JSON byte slice.
+// The return value is a slice of `Context` objects, where the number of items
+// will be equal to the number of input paths. Each `Context` represents the value
+// extracted for the corresponding path. This method operates directly on the byte slice,
+// which is preferred when working with JSON data in byte format to minimize memory allocations.
 //
 // Parameters:
-//   - token: The other Context token to compare with the current one (t).
-//   - caseSensitive: A boolean flag that indicates whether the comparison for String type tokens should be case-sensitive.
-//   - If true, the comparison is case-sensitive (i.e., "a" < "b" but "A" < "b").
-//   - If false, the comparison is case-insensitive (i.e., "a" == "A").
+//   - `json`: A byte slice containing the JSON data to search through.
+//   - `path`: A variadic list of paths to search for within the JSON data.
 //
 // Returns:
-//   - true: If the current token (t) is considered less than the provided token.
-//   - false: If the current token (t) is not considered less than the provided token.
+//   - A slice of `Context` objects, one for each path provided in the `path` parameter.
 //
-// The function first compares the `kind` of both tokens, which represents their JSON types.
-// If both tokens have the same kind, it proceeds to compare based on their specific types:
-// - For String types, it compares the strings based on the case-sensitive flag.
-// - For Number types, it compares the numeric values directly.
-// - For other types, it compares the unprocessed JSON values as raw strings (this could be useful for types like Null, Boolean, etc.).
+// Notes:
+//   - The function will return a `Context` for each path, and the order of the `Context`
+//     objects in the result will match the order of the paths provided.
 //
-// Example usage:
+// Example:
 //
-//	context1 := Context{kind: String, strings: "apple"}
-//	context2 := Context{kind: String, strings: "banana"}
-//	result := context1.Less(context2, true) // This would return true because "apple" < "banana" and case-sensitive comparison is used.
-func (t Context) Less(token Context, caseSensitive bool) bool {
-	if t.kind < token.kind {
-		return true
+//	jsonBytes := []byte(`{"user": {"firstName": "Alice", "lastName": "Johnson"}, "age": 29}`)
+//	paths := []string{"user.lastName", "age"}
+//	results := GetMulBytes(jsonBytes, paths...)
+//	// The result will contain Contexts for each path: ["Johnson", 29]
+func GetMulBytes(json []byte, path ...string) []Context {
+	ctx := make([]Context, len(path))
+	for i, path := range path {
+		ctx[i] = GetBytes(json, path)
 	}
-	if t.kind > token.kind {
-		return false
-	}
-	if t.kind == String {
-		if caseSensitive {
-			return t.strings < token.strings
+	return ctx
+}
+
+// EscapeUnsafeChars processes a string `component` to escape characters that are not considered safe
+// according to the `isSafeKeyChar` function. It inserts a backslash (`\`) before each unsafe
+// character, ensuring that the resulting string contains only safe characters.
+//
+// Parameters:
+//   - `component`: A string that may contain unsafe characters that need to be escaped.
+//
+// Returns:
+//   - A new string with unsafe characters escaped by prefixing them with a backslash (`\`).
+//
+// Notes:
+//   - The function iterates through the input string and checks each character using the
+//     `isSafeKeyChar` function. When it encounters an unsafe character, it escapes it with a backslash.
+//   - Once an unsafe character is found, the function adds a backslash before each subsequent unsafe character
+//     and continues until the end of the string.
+//
+// Example:
+//
+//	component := "key-with$pecial*chars"
+//	escaped := EscapeUnsafeChars(component) // escaped: "key-with\$pecial\*chars"
+func EscapeUnsafeChars(component string) string {
+	for i := 0; i < len(component); i++ {
+		if !isSafeKeyChar(component[i]) {
+			noneComponent := []byte(component[:i])
+			for ; i < len(component); i++ {
+				if !isSafeKeyChar(component[i]) {
+					noneComponent = append(noneComponent, '\\')
+				}
+				noneComponent = append(noneComponent, component[i])
+			}
+			return string(noneComponent)
 		}
-		return lessInsensitive(t.strings, token.strings)
 	}
-	if t.kind == Number {
-		return t.numeric < token.numeric
-	}
-	return t.unprocessed < token.unprocessed
+	return component
 }
 
-// GetMany searches json for the multiple paths.
-// The return value is a Result array where the number of items
-// will be equal to the number of input paths.
-func GetMany(json string, path ...string) []Context {
-	res := make([]Context, len(path))
-	for i, path := range path {
-		res[i] = Get(json, path)
+// ForeachLine iterates through each line of JSON data in the JSON Lines format (http://jsonlines.org/),
+// and applies a provided iterator function to each line. This is useful for processing large JSON data
+// sets where each line is a separate JSON object, allowing for efficient parsing and handling of each object.
+//
+// Parameters:
+//   - `json`: A string containing JSON Lines formatted data, where each line is a separate JSON object.
+//   - `iterator`: A callback function that is called for each line. It receives a `Context` representing
+//     the parsed JSON object for the current line. The iterator function should return `true` to continue
+//     processing the next line, or `false` to stop the iteration.
+//
+// Example Usage:
+//
+//	json := `{"name": "Alice"}\n{"name": "Bob"}`
+//	iterator := func(line Context) bool {
+//	    fmt.Println(line)
+//	    return true
+//	}
+//	ForeachLine(json, iterator)
+//	// Output:
+//	// {"name": "Alice"}
+//	// {"name": "Bob"}
+//
+// Notes:
+//   - This function assumes the input `json` is formatted as JSON Lines, where each line is a valid JSON object.
+//   - The function stops processing as soon as the `iterator` function returns `false` for a line.
+//   - The function handles each line independently, meaning it processes one JSON object at a time and provides
+//     it to the iterator, which can be used to process or filter lines.
+//
+// Returns:
+//   - This function does not return a value. It processes the JSON data line-by-line and applies the iterator to each.
+func ForeachLine(json string, iterator func(line Context) bool) {
+	var ctx Context
+	var i int
+	for {
+		i, ctx, _ = parseJSONAny(json, i, true)
+		if !ctx.Exists() {
+			break
+		}
+		if !iterator(ctx) {
+			return
+		}
 	}
-	return res
-}
-
-// GetManyBytes searches json for the multiple paths.
-// The return value is a Result array where the number of items
-// will be equal to the number of input paths.
-func GetManyBytes(json []byte, path ...string) []Context {
-	res := make([]Context, len(path))
-	for i, path := range path {
-		res[i] = GetBytes(json, path)
-	}
-	return res
 }
 
 // Valid returns true if the input is valid json.
 //
-//	if !bjson.Valid(json) {
+//	if !fj.Valid(json) {
 //		return errors.New("invalid json")
 //	}
-//	value := bjson.Get(json, "name.last")
+//	value := fj.Get(json, "name.last")
 func Valid(json string) bool {
 	_, ok := verifyJson(fromStr2Bytes(json), 0)
 	return ok
@@ -1247,10 +1302,10 @@ func Valid(json string) bool {
 
 // ValidBytes returns true if the input is valid json.
 //
-//	if !bjson.Valid(json) {
+//	if !fj.Valid(json) {
 //		return errors.New("invalid json")
 //	}
-//	value := bjson.Get(json, "name.last")
+//	value := fj.Get(json, "name.last")
 //
 // If working with bytes, this method preferred over ValidBytes(string(data))
 func ValidBytes(json []byte) bool {
@@ -1276,9 +1331,9 @@ func init() {
 	}
 }
 
-// AddModifier binds a custom modifier command to the bjson syntax.
+// AddModifier binds a custom modifier command to the fj syntax.
 // This operation is not thread safe and should be executed prior to
-// using all other bjson function.
+// using all other fj function.
 func AddModifier(name string, fn func(json, arg string) string) {
 	modifiers[name] = fn
 }
@@ -1293,7 +1348,7 @@ func ModifierExists(name string, fn func(json, arg string) string) bool {
 func modPretty(json, arg string) string {
 	if len(arg) > 0 {
 		opts := *unify4g.DefaultOptionsConfig
-		Parse(arg).ForEach(func(key, value Context) bool {
+		Parse(arg).Foreach(func(key, value Context) bool {
 			switch key.String() {
 			case "sortKeys":
 				opts.SortKeys = value.Bool()
@@ -1326,7 +1381,7 @@ func modReverse(json, arg string) string {
 	res := Parse(json)
 	if res.IsArray() {
 		var values []Context
-		res.ForEach(func(_, value Context) bool {
+		res.Foreach(func(_, value Context) bool {
 			values = append(values, value)
 			return true
 		})
@@ -1343,7 +1398,7 @@ func modReverse(json, arg string) string {
 	}
 	if res.IsObject() {
 		var keyValues []Context
-		res.ForEach(func(key, value Context) bool {
+		res.Foreach(func(key, value Context) bool {
 			keyValues = append(keyValues, key, value)
 			return true
 		})
@@ -1379,7 +1434,7 @@ func modFlatten(json, arg string) string {
 	}
 	var deep bool
 	if arg != "" {
-		Parse(arg).ForEach(func(key, value Context) bool {
+		Parse(arg).Foreach(func(key, value Context) bool {
 			if key.String() == "deep" {
 				deep = value.Bool()
 			}
@@ -1389,7 +1444,7 @@ func modFlatten(json, arg string) string {
 	var out []byte
 	out = append(out, '[')
 	var idx int
-	res.ForEach(func(_, value Context) bool {
+	res.Foreach(func(_, value Context) bool {
 		var raw string
 		if value.IsArray() {
 			if deep {
@@ -1426,7 +1481,7 @@ func modKeys(json, arg string) string {
 	var out strings.Builder
 	out.WriteByte('[')
 	var i int
-	v.ForEach(func(key, _ Context) bool {
+	v.Foreach(func(key, _ Context) bool {
 		if i > 0 {
 			out.WriteByte(',')
 		}
@@ -1456,7 +1511,7 @@ func modValues(json, arg string) string {
 	var out strings.Builder
 	out.WriteByte('[')
 	var i int
-	v.ForEach(func(_, value Context) bool {
+	v.Foreach(func(_, value Context) bool {
 		if i > 0 {
 			out.WriteByte(',')
 		}
@@ -1488,7 +1543,7 @@ func modJoin(json, arg string) string {
 	}
 	var preserve bool
 	if arg != "" {
-		Parse(arg).ForEach(func(key, value Context) bool {
+		Parse(arg).Foreach(func(key, value Context) bool {
 			if key.String() == "preserve" {
 				preserve = value.Bool()
 			}
@@ -1500,7 +1555,7 @@ func modJoin(json, arg string) string {
 	if preserve {
 		// Preserve duplicate keys.
 		var idx int
-		res.ForEach(func(_, value Context) bool {
+		res.Foreach(func(_, value Context) bool {
 			if !value.IsObject() {
 				return true
 			}
@@ -1515,11 +1570,11 @@ func modJoin(json, arg string) string {
 		// Deduplicate keys and generate an object with stable ordering.
 		var keys []Context
 		keyVal := make(map[string]Context)
-		res.ForEach(func(_, value Context) bool {
+		res.Foreach(func(_, value Context) bool {
 			if !value.IsObject() {
 				return true
 			}
-			value.ForEach(func(key, value Context) bool {
+			value.Foreach(func(key, value Context) bool {
 				k := key.String()
 				if _, ok := keyVal[k]; !ok {
 					keys = append(keys, key)
@@ -1565,7 +1620,7 @@ func modFromStr(json, arg string) string {
 //
 //	{"id":1023,"name":"alert"} -> "{\"id\":1023,\"name\":\"alert\"}"
 func modToStr(str, arg string) string {
-	return string(AppendJSON(nil, str))
+	return string(appendJSON(nil, str))
 }
 
 func modGroup(json, arg string) string {
@@ -1574,12 +1629,12 @@ func modGroup(json, arg string) string {
 		return ""
 	}
 	var all [][]byte
-	res.ForEach(func(key, value Context) bool {
+	res.Foreach(func(key, value Context) bool {
 		if !value.IsArray() {
 			return true
 		}
 		var idx int
-		value.ForEach(func(_, value Context) bool {
+		value.Foreach(func(_, value Context) bool {
 			if idx == len(all) {
 				all = append(all, []byte{})
 			}
@@ -1603,7 +1658,7 @@ func modGroup(json, arg string) string {
 	return string(data)
 }
 
-// Paths returns the original bjson paths for a Result where the Result came
+// Paths returns the original fj paths for a Result where the Result came
 // from a simple query path that returns an array, like:
 //
 //	bjson.Get(json, "friends.#.first")
@@ -1617,22 +1672,22 @@ func modGroup(json, arg string) string {
 // Returns an empty string if the paths cannot be determined, which can happen
 // when the Result came from a path that contained a multi-path, modifier,
 // or a nested query.
-func (t Context) Paths(json string) []string {
-	if t.indexes == nil {
+func (ctx Context) Paths(json string) []string {
+	if ctx.indexes == nil {
 		return nil
 	}
-	paths := make([]string, 0, len(t.indexes))
-	t.ForEach(func(_, value Context) bool {
+	paths := make([]string, 0, len(ctx.indexes))
+	ctx.Foreach(func(_, value Context) bool {
 		paths = append(paths, value.Path(json))
 		return true
 	})
-	if len(paths) != len(t.indexes) {
+	if len(paths) != len(ctx.indexes) {
 		return nil
 	}
 	return paths
 }
 
-// Path returns the original bjson path for a Result where the Result came
+// Path returns the original fj path for a Result where the Result came
 // from a simple path that returns a single value, like:
 //
 //	bjson.Get(json, "friends.#(last=Murphy)")
@@ -1646,15 +1701,15 @@ func (t Context) Paths(json string) []string {
 // Returns an empty string if the paths cannot be determined, which can happen
 // when the Result came from a path that contained a multi-path, modifier,
 // or a nested query.
-func (t Context) Path(json string) string {
+func (ctx Context) Path(json string) string {
 	var path []byte
 	var comps []string // raw components
-	i := t.index - 1
-	if t.index+len(t.unprocessed) > len(json) {
+	i := ctx.index - 1
+	if ctx.index+len(ctx.unprocessed) > len(json) {
 		// JSON cannot safely contain Result.
 		goto fail
 	}
-	if !strings.HasPrefix(json[t.index:], t.unprocessed) {
+	if !strings.HasPrefix(json[ctx.index:], ctx.unprocessed) {
 		// Result is not at the JSON index as expected.
 		goto fail
 	}
@@ -1733,7 +1788,7 @@ func parseRecursiveDescent(all []Context, parent Context, path string) []Context
 		all = append(all, res)
 	}
 	if parent.IsArray() || parent.IsObject() {
-		parent.ForEach(func(_, val Context) bool {
+		parent.Foreach(func(_, val Context) bool {
 			all = parseRecursiveDescent(all, val, path)
 			return true
 		})
