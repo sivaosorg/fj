@@ -442,3 +442,44 @@ func transformJoin(json, arg string) string {
 	target = append(target, '}')
 	return fromBytes2Str(target)
 }
+
+// transformJSONValid ensures that the input JSON is valid before processing it further.
+// If the provided JSON string is not valid, the function returns an empty string. If the
+// JSON is valid, the original JSON string is returned unchanged.
+//
+// Parameters:
+//   - `json`: A string representing the JSON data that needs to be validated.
+//   - `arg`: This parameter is not used in this function but is included for consistency
+//     with the signature of other transformation functions.
+//
+// Returns:
+//   - A string: The original JSON string if it is valid, or an empty string if the JSON
+//     is not valid.
+//
+// Example Usage:
+//
+//	// Input JSON (valid)
+//	json := `{"name":"Alice","age":25}`
+//	validJSON := transformJSONValid(json, "")
+//	fmt.Println(validJSON)
+//	// Output: {"name":"Alice","age":25}
+//
+//	// Input JSON (invalid)
+//	json := `{"name":"Alice","age":25`
+//	validJSON := transformJSONValid(json, "")
+//	fmt.Println(validJSON)
+//	// Output: (empty string)
+//
+// Notes:
+//   - The function uses `IsValidJSON` (presumably another function in the codebase) to
+//     check whether the input string is valid JSON.
+//   - If the JSON is invalid, the function returns an empty string, which can be used
+//     to stop further processing.
+//   - If the JSON is valid, it returns the JSON string unmodified, allowing subsequent
+//     transformations or processing to proceed.
+func transformJSONValid(json, arg string) string {
+	if !IsValidJSON(json) {
+		return ""
+	}
+	return json
+}

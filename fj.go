@@ -1628,7 +1628,7 @@ func init() {
 		"reverse": transformReverse,
 		"flatten": transformFlatten,
 		"join":    transformJoin,
-		"valid":   modValid,
+		"valid":   transformJSONValid,
 		"keys":    modKeys,
 		"values":  modValues,
 		"tostr":   modToStr,
@@ -1690,15 +1690,6 @@ func modValues(json, arg string) string {
 	})
 	out.WriteByte(']')
 	return out.String()
-}
-
-// @valid ensures that the json is valid before moving on. An empty string is
-// returned when the json is not valid, otherwise it returns the original json.
-func modValid(json, arg string) string {
-	if !IsValidJSON(json) {
-		return ""
-	}
-	return json
 }
 
 // @fromstr converts a string to json
