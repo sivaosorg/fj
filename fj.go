@@ -544,7 +544,7 @@ func IsValidJSONBytes(json []byte) bool {
 //   - Once registered, the modifier can be used in fj queries to transform the JSON data
 //     according to the logic defined in the `fn` function.
 func AddModifier(name string, fn func(json, arg string) string) {
-	modifiers[name] = fn
+	jsonTransformers[name] = fn
 }
 
 // IsModifierRegistered checks whether a specified modifier has been registered in the fj system.
@@ -577,10 +577,10 @@ func IsModifierRegistered(name string) bool {
 	if unify4g.IsEmpty(name) {
 		return false
 	}
-	if len(modifiers) == 0 {
+	if len(jsonTransformers) == 0 {
 		return false
 	}
-	_, ok := modifiers[name]
+	_, ok := jsonTransformers[name]
 	return ok
 }
 
@@ -1621,7 +1621,7 @@ func (t Type) String() string {
 }
 
 func init() {
-	modifiers = map[string]func(json, arg string) string{
+	jsonTransformers = map[string]func(json, arg string) string{
 		"pretty":  applyPretty,
 		"ugly":    modUgly,
 		"reverse": modReverse,

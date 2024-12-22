@@ -5,10 +5,10 @@ package fj
 // If set to false, modifiers will be applied as expected.
 var DisableModifiers = false
 
-// modifiers is a map that associates a string key (the modifier type) with a function that
+// jsonTransformers is a map that associates a string key (the modifier type) with a function that
 // takes two string arguments (`json` and `arg`), and returns a modified string. The map is used
-// to apply various transformations to JSON data based on the specified modifiers.
-var modifiers map[string]func(json, arg string) string
+// to apply various transformations to JSON data based on the specified jsonTransformers.
+var jsonTransformers map[string]func(json, arg string) string
 
 // hexDigits is an array of bytes representing the hexadecimal digits used in JSON encoding.
 // It contains the characters '0' to '9' and 'a' to 'f', which are used for encoding hexadecimal numbers.

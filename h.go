@@ -1929,7 +1929,7 @@ func isModifierOrJSONStart(s string) bool {
 				break
 			}
 		}
-		_, ok := modifiers[s[1:i]]
+		_, ok := jsonTransformers[s[1:i]]
 		return ok
 	}
 	return c == '[' || c == '{'
@@ -3518,7 +3518,7 @@ func adjustModifier(json, path string) (pathYield, result string, ok bool) {
 		}
 	}
 	// check if the modifier exists in the modifiers map and apply it if found.
-	if fn, ok := modifiers[name]; ok {
+	if fn, ok := jsonTransformers[name]; ok {
 		var args string
 		if hasArgs { // if arguments are found, parse and handle them.
 			var parsedArgs bool
