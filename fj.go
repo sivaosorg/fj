@@ -1623,47 +1623,19 @@ func (t Type) String() string {
 func init() {
 	jsonTransformers = map[string]func(json, arg string) string{
 		"this":    transformDefault,
+		"valid":   transformJSONValid,
 		"pretty":  transformPretty,
 		"minify":  transformMinify,
 		"reverse": transformReverse,
 		"flatten": transformFlatten,
 		"join":    transformJoin,
-		"valid":   transformJSONValid,
-		"keys":    modKeys,
+		"keys":    transformKeys,
 		"values":  modValues,
 		"tostr":   modToStr,
 		"fromstr": modFromStr,
 		"group":   modGroup,
 		"dig":     modDig,
 	}
-}
-
-// @keys extracts the keys from an object.
-//
-//	{"first":"Tom","last":"Smith"} -> ["first","last"]
-func modKeys(json, arg string) string {
-	v := Parse(json)
-	if !v.Exists() {
-		return "[]"
-	}
-	obj := v.IsObject()
-	var out strings.Builder
-	out.WriteByte('[')
-	var i int
-	v.Foreach(func(key, _ Context) bool {
-		if i > 0 {
-			out.WriteByte(',')
-		}
-		if obj {
-			out.WriteString(key.unprocessed)
-		} else {
-			out.WriteString("null")
-		}
-		i++
-		return true
-	})
-	out.WriteByte(']')
-	return out.String()
 }
 
 // @values extracts the values from an object.

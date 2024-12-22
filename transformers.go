@@ -483,3 +483,66 @@ func transformJSONValid(json, arg string) string {
 	}
 	return json
 }
+
+// transformKeys extracts the keys from a JSON object and returns them as a JSON array of strings.
+// The function processes the input JSON, identifies whether it is an object, and then generates
+// an array containing the keys of the object. If the input is not a valid JSON object, it returns
+// an empty array.
+//
+// Parameters:
+//   - `json`: A string representing the JSON data, which should be an object from which keys will be extracted.
+//   - `arg`: This parameter is not used in this function but is included for consistency with other transformation functions.
+//
+// Returns:
+//   - A string representing a JSON array of keys, or an empty array (`[]`) if the input is not a valid object.
+//
+// Example Usage:
+//
+//	// Input JSON (object)
+//	json := `{"first":"Tom","last":"Smith"}`
+//	keys := transformKeys(json, "")
+//	fmt.Println(keys)
+//	// Output: ["first","last"]
+//
+//	// Input JSON (non-object)
+//	json := `"Tom"`
+//	keys := transformKeys(json, "")
+//	fmt.Println(keys)
+//	// Output: []
+//
+// Notes:
+//   - If the input JSON is an object, the function will iterate through the keys of the object and return them in
+//     a JSON array format.
+//   - If the input JSON is not an object (e.g., an array, string, or invalid), the function will return an empty array (`[]`).
+//   - The function relies on the `Parse` function to parse the input JSON and the `Foreach` method to iterate over
+//     the object keys.
+//   - The `unprocessed` method is used to extract the raw key value as a string without further processing.
+//
+// Implementation Details:
+//   - The function first checks if the parsed JSON object exists. If it does, it iterates through the object and extracts
+//     the keys. Each key is added to a string builder, and the keys are wrapped in square brackets to form a valid JSON array.
+//   - If the JSON is not an object, the function immediately returns an empty array (`[]`).
+func transformKeys(json, arg string) string {
+	ctx := Parse(json)
+	if !ctx.Exists() {
+		return "[]"
+	}
+	var i int
+	var builder strings.Builder
+	o := ctx.IsObject()
+	builder.WriteByte('[')
+	ctx.Foreach(func(key, _ Context) bool {
+		if i > 0 {
+			builder.WriteByte(',')
+		}
+		if o {
+			builder.WriteString(key.unprocessed)
+		} else {
+			builder.WriteString("null")
+		}
+		i++
+		return true
+	})
+	builder.WriteByte(']')
+	return builder.String()
+}
