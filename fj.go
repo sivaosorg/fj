@@ -1622,7 +1622,7 @@ func (t Type) String() string {
 
 func init() {
 	modifiers = map[string]func(json, arg string) string{
-		"pretty":  modPretty,
+		"pretty":  applyPretty,
 		"ugly":    modUgly,
 		"reverse": modReverse,
 		"this":    modThis,
@@ -1638,13 +1638,75 @@ func init() {
 	}
 }
 
-// @pretty modifier makes the json look nice.
-func modPretty(json, arg string) string {
+// applyPretty formats the input JSON string into a human-readable, indented format.
+//
+// This function applies "pretty printing" to the provided JSON data, making it easier to read
+// and interpret. If additional formatting options are specified in the `arg` parameter, these
+// options are parsed and applied to customize the output. Formatting options include sorting
+// keys, setting indentation styles, specifying prefixes, and defining maximum line widths.
+//
+// Parameters:
+//   - `json`: The JSON string to be formatted.
+//   - `arg`: An optional string containing formatting configuration in JSON format. The configuration
+//     can specify the following keys:
+//   - `sortKeys`: A boolean value (`true` or `false`) that determines whether keys in JSON objects
+//     should be sorted alphabetically.
+//   - `indent`: A string containing whitespace characters (e.g., `"  "` or `"\t"`) used for indentation.
+//   - `prefix`: A string prepended to each line of the formatted JSON.
+//   - `width`: An integer specifying the maximum line width for the formatted output.
+//
+// Returns:
+//   - A string representing the formatted JSON, transformed based on the specified or default options.
+//
+// Example Usage:
+//
+//	// Input JSON
+//	json := `{"name":"Alice","age":25,"address":{"city":"New York","zip":"10001"}}`
+//
+//	// Format without additional options
+//	prettyJSON := applyPretty(json, "")
+//	fmt.Println(prettyJSON)
+//	// Output:
+//	// {
+//	//   "name": "Alice",
+//	//   "age": 25,
+//	//   "address": {
+//	//     "city": "New York",
+//	//     "zip": "10001"
+//	//   }
+//	// }
+//
+//	// Format with additional options
+//	arg := `{"indent": "\t", "sort_keys": true}`
+//	prettyJSONWithOpts := applyPretty(json, arg)
+//	fmt.Println(prettyJSONWithOpts)
+//	// Output:
+//	// {
+//	// 	"address": {
+//	// 		"city": "New York",
+//	// 		"zip": "10001"
+//	// 	},
+//	// 	"age": 25,
+//	// 	"name": "Alice"
+//	// }
+//
+// Notes:
+//   - If `arg` is empty, default formatting is applied with standard indentation.
+//   - The function uses `unify4g.Pretty` or `unify4g.PrettyOptions` for the actual formatting.
+//   - Invalid or unrecognized keys in the `arg` parameter are ignored.
+//   - The function internally uses `fromStr2Bytes` and `fromBytes2Str` for efficient data conversion.
+//
+// Implementation Details:
+//   - The `arg` string is parsed using the `Parse` function, and each key-value pair is applied
+//     to configure the formatting options (`opts`).
+//   - The `stripNonWhitespace` function ensures only whitespace characters are used for `indent`
+//     and `prefix` settings to prevent formatting errors.
+func applyPretty(json, arg string) string {
 	if len(arg) > 0 {
 		opts := *unify4g.DefaultOptionsConfig
 		Parse(arg).Foreach(func(key, value Context) bool {
 			switch key.String() {
-			case "sortKeys":
+			case "sort_keys":
 				opts.SortKeys = value.Bool()
 			case "indent":
 				opts.Indent = stripNonWhitespace(value.String())
