@@ -158,7 +158,7 @@ func ParseBytes(json []byte) Context {
 // Details:
 //   - The function does not validate JSON format but expects well-formed input.
 //     Invalid JSON may result in unexpected behavior.
-//   - Modifiers (e.g., `@` for adjusting paths) and special sub-selectors (e.g., `[` and `{`) are supported and processed
+//   - transformers (e.g., `@` for adjusting paths) and special sub-selectors (e.g., `[` and `{`) are supported and processed
 //     in the path before extracting values.
 //   - For complex structures, the function analyzes the provided path, handles nested arrays or objects, and returns
 //     a Context containing the value found at the specified location.
@@ -175,12 +175,12 @@ func ParseBytes(json []byte) Context {
 //   - If the path is not found, the returned Context will reflect this with an empty or null value.
 func Get(json, path string) Context {
 	if len(path) > 1 {
-		if (path[0] == '@' && !DisableModifiers) || path[0] == '!' {
+		if (path[0] == '@' && !DisableTransformers) || path[0] == '!' {
 			var ok bool
 			var cPath string
 			var cJson string
-			if path[0] == '@' && !DisableModifiers {
-				cPath, cJson, ok = adjustModifier(json, path)
+			if path[0] == '@' && !DisableTransformers {
+				cPath, cJson, ok = adjustTransformer(json, path)
 			} else if path[0] == '!' {
 				cPath, cJson, ok = parseStaticValue(path)
 			}
@@ -497,32 +497,32 @@ func IsValidJSONBytes(json []byte) bool {
 	return ok
 }
 
-// AddTransformer binds a custom modifier function to the fj syntax.
+// AddTransformer binds a custom transformer function to the fj syntax.
 //
-// This function allows users to register custom modifier functions that can be applied
-// to JSON data in the fj query language. A modifier is a transformation function that
+// This function allows users to register custom transformer functions that can be applied
+// to JSON data in the fj query language. A transformer is a transformation function that
 // takes two string arguments — the JSON data and an argument (such as a key or value) —
-// and returns a modified version of the JSON data. The registered modifier can then
+// and returns a modified version of the JSON data. The registered transformer can then
 // be used in queries to modify the JSON data dynamically.
 //
 // Parameters:
-//   - `name`: A string representing the name of the modifier. This name will be used
-//     in the fj query language to reference the modifier.
+//   - `name`: A string representing the name of the transformer. This name will be used
+//     in the fj query language to reference the transformer.
 //   - `fn`: A function that takes two string arguments: `json` (the JSON data to be modified),
-//     and `arg` (the argument that the modifier will use to transform the JSON). The function
+//     and `arg` (the argument that the transformer will use to transform the JSON). The function
 //     should return a modified string (the transformed JSON data).
 //
 // Example Usage:
 //
-//	// Define a custom modifier to uppercase all values in a JSON array.
-//	uppercaseModifier := func(json, arg string) string {
+//	// Define a custom transformer to uppercase all values in a JSON array.
+//	uppercaseTransformer := func(json, arg string) string {
 //	  return strings.ToUpper(json)  // Modify the JSON data (this is just a simple example).
 //	}
 //
-//	// Add the custom modifier to the fj system with the name "uppercase".
-//	fj.AddTransformer("uppercase", uppercaseModifier)
+//	// Add the custom transformer to the fj system with the name "uppercase".
+//	fj.AddTransformer("uppercase", uppercaseTransformer)
 //
-//	// Now you can use the "uppercase" modifier in a query:
+//	// Now you can use the "uppercase" transformer in a query:
 //	json := `{
 //	  "store": {
 //	    "book": [
@@ -535,44 +535,44 @@ func IsValidJSONBytes(json []byte) bool {
 //	    ]
 //	  }
 //	}`
-//	result := fj.Get(json, "store.music.1.album|@uppercase").String()  // Applies the uppercase modifier to each value in the array.
+//	result := fj.Get(json, "store.music.1.album|@uppercase").String()  // Applies the uppercase transformer to each value in the array.
 //	// result will contain: THE WALL
 //
 // Notes:
 //   - This function is not thread-safe, so it should be called once, typically during
-//     the initialization phase, before performing any queries that rely on custom modifiers.
-//   - Once registered, the modifier can be used in fj queries to transform the JSON data
+//     the initialization phase, before performing any queries that rely on custom transformers.
+//   - Once registered, the transformer can be used in fj queries to transform the JSON data
 //     according to the logic defined in the `fn` function.
 func AddTransformer(name string, fn func(json, arg string) string) {
 	jsonTransformers[name] = fn
 }
 
-// IsTransformerRegistered checks whether a specified modifier has been registered in the fj system.
+// IsTransformerRegistered checks whether a specified transformer has been registered in the fj system.
 //
-// This function allows users to verify if a modifier with a given name has already
-// been added to the `fj` query system. Modifiers are custom functions that transform
+// This function allows users to verify if a transformer with a given name has already
+// been added to the `fj` query system. transformers are custom functions that transform
 // JSON data in queries. This utility is useful to prevent duplicate registrations
-// or to confirm the availability of a specific modifier before using it.
+// or to confirm the availability of a specific transformer before using it.
 //
 // Parameters:
-//   - `name`: A string representing the name of the modifier to check for existence.
+//   - `name`: A string representing the name of the transformer to check for existence.
 //
 // Returns:
-//   - `bool`: Returns `true` if a modifier with the given name exists, otherwise returns `false`.
+//   - `bool`: Returns `true` if a transformer with the given name exists, otherwise returns `false`.
 //
 // Example Usage:
 //
-//	// Check if a custom modifier named "uppercase" has already been registered.
+//	// Check if a custom transformer named "uppercase" has already been registered.
 //	if fj.IsTransformerRegistered("uppercase") {
-//	  fmt.Println("The 'uppercase' modifier is available.")
+//	  fmt.Println("The 'uppercase' transformer is available.")
 //	} else {
-//	  fmt.Println("The 'uppercase' modifier has not been registered.")
+//	  fmt.Println("The 'uppercase' transformer has not been registered.")
 //	}
 //
 // Notes:
-//   - This function does not modify the `modifiers` map; it only queries it to check
-//     for the existence of the specified modifier.
-//   - It is thread-safe when used only to query the existence of a modifier.
+//   - This function does not modify the `transformers` map; it only queries it to check
+//     for the existence of the specified transformer.
+//   - It is thread-safe when used only to query the existence of a transformer.
 func IsTransformerRegistered(name string) bool {
 	if unify4g.IsEmpty(name) {
 		return false
@@ -1162,7 +1162,7 @@ func (ctx Context) Get(path string) Context {
 // Returns:
 //   - A string representing the original path for the single value in the result.
 //   - If the paths cannot be determined (e.g., due to the result being from
-//     a multi-path, modifier, or a nested query), an empty string will be returned.
+//     a multi-path, transformer, or a nested query), an empty string will be returned.
 //
 // Notes:
 //   - The `Path` function operates by tracing the position of the result within
@@ -1259,7 +1259,7 @@ func (ctx Context) Path(json string) string {
 	}
 	// If no components are found, return a default path for "this"
 	if len(components) == 0 {
-		if DisableModifiers {
+		if DisableTransformers {
 			goto fail
 		}
 		return "@this"
@@ -1310,7 +1310,7 @@ fail:
 //   - If the result was a simple query that returns an array, each string
 //     will be a path to an individual element in the array.
 //   - If the paths cannot be determined (e.g., due to the result being
-//     from a multi-path, modifier, or a nested query), an empty slice will
+//     from a multi-path, transformer, or a nested query), an empty slice will
 //     be returned.
 //
 // Notes:
@@ -1622,20 +1622,26 @@ func (t Type) String() string {
 
 func init() {
 	jsonTransformers = map[string]func(json, arg string) string{
-		"this":      transformDefault,
-		"valid":     transformJSONValid,
-		"pretty":    transformPretty,
-		"minify":    transformMinify,
-		"reverse":   transformReverse,
-		"flatten":   transformFlatten,
-		"join":      transformJoin,
-		"keys":      transformKeys,
-		"values":    transformValues,
-		"string":    transformToString,
-		"json":      transformToJSON,
-		"group":     transformGroup,
-		"vlookup":   transformVLookup,
-		"uppercase": transformUppercase,
-		"lowercase": transformLowercase,
+		"trim":       transformTrim,
+		"this":       transformDefault,
+		"valid":      transformJSONValid,
+		"pretty":     transformPretty,
+		"minify":     transformMinify,
+		"reverse":    transformReverse,
+		"flatten":    transformFlatten,
+		"join":       transformJoin,
+		"keys":       transformKeys,
+		"values":     transformValues,
+		"string":     transformToString,
+		"json":       transformToJSON,
+		"group":      transformGroup,
+		"search":     transformSearch,
+		"uppercase":  transformUppercase,
+		"lowercase":  transformLowercase,
+		"flip":       transformFlip,
+		"snakeCase":  transformSnakeCase,
+		"camelCase":  transformCamelCase,
+		"kebabCase":  transformKebabCase,
+		"replaceAll": transformReplaceAll,
 	}
 }

@@ -770,7 +770,7 @@ func transformGroup(json, arg string) string {
 	return string(data)
 }
 
-// transformVLookup performs a value lookup on a JSON structure based on the specified path
+// transformSearch performs a value lookup on a JSON structure based on the specified path
 // and returns a JSON-encoded string containing all matching values found at that path.
 //
 // This function searches recursively through the JSON structure to find all occurrences
@@ -804,7 +804,7 @@ func transformGroup(json, arg string) string {
 //	}`
 //
 //	arg := "book.author"
-//	result := transformVLookup(json, arg)
+//	result := transformSearch(json, arg)
 //
 //	// Output: `["J.K. Rowling", "Stephen Hawking"]`
 //	// The function will search for the "book.author" path and return all matching author names
@@ -822,7 +822,7 @@ func transformGroup(json, arg string) string {
 //     structure and collect all matching values along the specified path.
 //   - The results are then appended to a byte slice (`seg`), which is later converted into a string.
 //   - The final output is a JSON array, even if no results are found.
-func transformVLookup(json, arg string) string {
+func transformSearch(json, arg string) string {
 	all := deepSearchRecursively(nil, Parse(json), arg)
 	var seg []byte
 	seg = append(seg, '[')
@@ -894,4 +894,175 @@ func transformLowercase(json, arg string) string {
 		return json
 	}
 	return strings.ToLower(json)
+}
+
+// transformFlip reverses the input JSON string.
+//
+// This function takes the input string and reverses the order of its characters.
+// It returns the reversed string. If the input string is empty, it returns the
+// string unchanged.
+//
+// Parameters:
+//   - `json`: The JSON string to be reversed.
+//   - `arg`: An optional argument that is currently unused, but could be extended
+//     for future transformations.
+//
+// Returns:
+//   - A string with its characters reversed. If the input is empty, the original
+//     string is returned unchanged.
+//
+// Example Usage:
+//
+//	json := "{\"name\":\"Alice\",\"age\":25}"
+//	result := transformReverse(json, "")
+//	fmt.Println(result) // Output: "}52ega,\"ecilA\":\"emam{"
+func transformFlip(json, arg string) string {
+	if unify4g.IsEmpty(json) {
+		return json
+	}
+	runes := []rune(json)
+	for i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {
+		runes[i], runes[j] = runes[j], runes[i]
+	}
+	return string(runes)
+}
+
+// transformTrim removes leading and trailing whitespace from the input JSON string.
+//
+// This function removes any whitespace characters at the beginning and end of the
+// input string. If there is no whitespace, the string remains unchanged.
+//
+// Parameters:
+//   - `json`: The JSON string to be trimmed of whitespace.
+//   - `arg`: An optional string argument that is currently unused, but could be
+//     extended for future use.
+//
+// Returns:
+//   - A string with leading and trailing whitespace removed. If the input string
+//     does not contain whitespace at the edges, it returns the original string.
+//
+// Example Usage:
+//
+//	json := "   {\"name\":\"Alice\"}   "
+//	result := transformTrim(json, "")
+//	fmt.Println(result) // Output: "{\"name\":\"Alice\"}"
+//
+// Notes:
+//   - This function uses Go's `strings.TrimSpace` method to remove whitespace characters.
+func transformTrim(json, arg string) string {
+	return unify4g.TrimWhitespace(trim(json))
+}
+
+// transformSnakeCase converts the input string to snake_case format, which is typically used
+// for variable names in many programming languages. The string is transformed to lowercase,
+// and spaces or other delimiters are replaced with underscores ('_').
+//
+// Parameters:
+//   - `json`: The input string that will be converted to snake_case.
+//   - `arg`: An optional string argument that is currently unused.
+//
+// Returns:
+//   - A string formatted in snake_case. If the input is empty, it returns unchanged.
+//
+// Example Usage:
+//
+//	json := "{\"First Name\":\"Alice\",\"Last Name\":\"Smith\"}"
+//	result := transformSnakeCase(json, "")
+//	fmt.Println(result) // Output: "{\"first_name\":\"alice\",\"last_name\":\"smith\"}"
+func transformSnakeCase(json, arg string) string {
+	if unify4g.IsEmpty(json) {
+		return json
+	}
+	// Replace spaces with underscores, convert to lowercase.
+	json = strings.ReplaceAll(json, " ", "_")
+	return strings.ToLower(json)
+}
+
+// transformCamelCase converts the input string into camelCase, which is often used for
+// variable and function names in JavaScript and other programming languages. The string
+// is converted to lowercase with spaces removed, and the first letter of each word after
+// the first is capitalized.
+//
+// Parameters:
+//   - `json`: The input string that will be converted to camelCase.
+//   - `arg`: An optional argument that is currently unused.
+//
+// Returns:
+//   - A string formatted in camelCase. If the input is empty, it returns unchanged.
+//
+// Example Usage:
+//
+//	json := "{\"first name\":\"alice\",\"last name\":\"smith\"}"
+//	result := transformCamelCase(json, "")
+//	fmt.Println(result) // Output: "{\"firstName\":\"alice\",\"lastName\":\"smith\"}"
+func transformCamelCase(json, arg string) string {
+	if unify4g.IsEmpty(json) {
+		return json
+	}
+	words := strings.Fields(json)
+	for i := 1; i < len(words); i++ {
+		words[i] = strings.Title(words[i])
+	}
+	return strings.Join(words, "")
+}
+
+// transformKebabCase converts the input string into kebab-case, often used for URL slugs.
+// The string is transformed to lowercase, and spaces are replaced with hyphens ('-').
+//
+// Parameters:
+//   - `json`: The input string that will be converted to kebab-case.
+//   - `arg`: An optional string argument that is currently unused.
+//
+// Returns:
+//   - A string formatted in kebab-case. If the input is empty, it returns unchanged.
+//
+// Example Usage:
+//
+//	json := "{\"First Name\":\"Alice\",\"Last Name\":\"Smith\"}"
+//	result := transformKebabCase(json, "")
+//	fmt.Println(result) // Output: "{\"first-name\":\"alice\",\"last-name\":\"smith\"}"
+func transformKebabCase(json, arg string) string {
+	if unify4g.IsEmpty(json) {
+		return json
+	}
+	// Replace spaces with hyphens, convert to lowercase.
+	json = strings.ReplaceAll(json, " ", "-")
+	return strings.ToLower(json)
+}
+
+// transformReplaceAll replaces all occurrences of a target substring with a replacement string.
+//
+// This function performs a global replacement in the input string, replacing every occurrence
+// of the target substring with the specified replacement.
+//
+// Parameters:
+//   - `json`: The input string in which the replacement will be performed.
+//   - `arg`: A JSON string containing the target and replacement substrings.
+//     Example: `{"target": "foo", "replacement": "bar"}`.
+//
+// Returns:
+//   - The string with all target substrings replaced by the replacement. If the input is empty,
+//     it returns unchanged.
+//
+// Example Usage:
+//
+//	json := "foo bar foo"
+//	arg := "{\"target\":\"foo\",\"replacement\":\"baz\"}"
+//	result := transformReplaceAll(json, arg)
+//	fmt.Println(result) // Output: "baz bar baz"
+func transformReplaceAll(json, arg string) string {
+	if unify4g.IsEmpty(json) {
+		return json
+	}
+	var target, replacement string
+	Parse(arg).Foreach(func(key, value Context) bool {
+		if key.String() == "target" {
+			target = value.String()
+		}
+		if key.String() == "replacement" {
+			replacement = value.String()
+		}
+		return true
+	})
+	return strings.ReplaceAll(json, target, replacement)
 }

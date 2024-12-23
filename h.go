@@ -1879,46 +1879,46 @@ func unescapeJSONEncoded(json string) (raw string, unescaped string) {
 	return json, json[1:]
 }
 
-// isModifierOrJSONStart checks whether the first character of the input string `s` is a special character
-// (such as '@', '[', or '{') that might indicate a modifier or a JSON structure in the context of processing.
+// isTransformerOrJSONStart checks whether the first character of the input string `s` is a special character
+// (such as '@', '[', or '{') that might indicate a transformer or a JSON structure in the context of processing.
 //
 // The function performs the following checks:
-//   - If the first character is '@', it further inspects if the following characters indicate a modifier.
+//   - If the first character is '@', it further inspects if the following characters indicate a transformer.
 //   - If the first character is '[' or '{', it returns `true`, indicating a potential JSON array or object.
-//   - The function will return `false` for any other characters or if modifiers are disabled.
+//   - The function will return `false` for any other characters or if transformers are disabled.
 //
 // Parameters:
-//   - `s`: A string to be checked, which can be a part of a JSON structure or an identifier with a modifier.
+//   - `s`: A string to be checked, which can be a part of a JSON structure or an identifier with a transformer.
 //
 // Returns:
-//   - `bool`: `true` if the first character is '@' followed by a modifier, or if the first character is '[' or '{'.
+//   - `bool`: `true` if the first character is '@' followed by a transformer, or if the first character is '[' or '{'.
 //     `false` otherwise.
 //
 // Example Usage:
 //
-//	s1 := "@modifier|value"
-//	isModifierOrJSONStart(s1)
-//	// Returns: true (because it starts with '@' and is followed by a modifier)
+//	s1 := "@transformer|value"
+//	isTransformerOrJSONStart(s1)
+//	// Returns: true (because it starts with '@' and is followed by a transformer)
 //
 //	s2 := "[1, 2, 3]"
-//	isModifierOrJSONStart(s2)
+//	isTransformerOrJSONStart(s2)
 //	// Returns: true (because it starts with '[')
 //
 //	s3 := "{ \"key\": \"value\" }"
-//	isModifierOrJSONStart(s3)
+//	isTransformerOrJSONStart(s3)
 //	// Returns: true (because it starts with '{')
 //
 //	s4 := "normalString"
-//	isModifierOrJSONStart(s4)
+//	isTransformerOrJSONStart(s4)
 //	// Returns: false (no '@', '[', or '{')
 //
 // Details:
-//   - The function first checks if modifiers are disabled (by `DisableModifiers` flag). If they are, it returns `false` immediately.
-//   - If the string starts with '@', it scans for a potential modifier by checking if there is a '.' or '|' after it,
-//     and verifies whether the modifier exists in the `modifiers` map.
+//   - The function first checks if transformers are disabled (by `DisableTransformers` flag). If they are, it returns `false` immediately.
+//   - If the string starts with '@', it scans for a potential transformer by checking if there is a '.' or '|' after it,
+//     and verifies whether the transformer exists in the `transformers` map.
 //   - If the string starts with '[' or '{', it immediately returns `true`, as those characters typically indicate the start of a JSON array or object.
-func isModifierOrJSONStart(s string) bool {
-	if DisableModifiers {
+func isTransformerOrJSONStart(s string) bool {
+	if DisableTransformers {
 		return false
 	}
 	c := s[0]
@@ -2188,7 +2188,7 @@ func parseNumeric(json string, i int) (int, string) {
 	return i, json[s:]
 }
 
-// parsePathWithModifiers parses a given path string, extracting different components such as parts, pipes, paths, and wildcards.
+// parsePathWithTransformers parses a given path string, extracting different components such as parts, pipes, paths, and wildcards.
 // It identifies special characters ('.', '|', '*', '?', '\\') in the path and processes them accordingly. The function
 // breaks the string into a part and further splits it into pipes or paths, marking certain flags when necessary.
 // It also handles escaped characters by stripping escape sequences and processing them correctly.
@@ -2209,20 +2209,20 @@ func parseNumeric(json string, i int) (int, string) {
 // Example Usage:
 //
 //	path1 := "field.subfield|anotherField"
-//	result := parsePathWithModifiers(path1)
+//	result := parsePathWithTransformers(path1)
 //	// result.Part: "field"
 //	// result.Path: "subfield"
 //	// result.Pipe: "anotherField"
 //	// result.Piped: true
 //
 //	path2 := "object.field"
-//	result = parsePathWithModifiers(path2)
+//	result = parsePathWithTransformers(path2)
 //	// result.Part: "object"
 //	// result.Path: "field"
 //	// result.More: true
 //
 //	path3 := "path\\.*.field"
-//	result = parsePathWithModifiers(path3)
+//	result = parsePathWithTransformers(path3)
 //	// result.Part: "path.*"
 //	// result.Wild: true
 //
@@ -2230,12 +2230,12 @@ func parseNumeric(json string, i int) (int, string) {
 //   - The function scans through the path string character by character, processing the first encountered special
 //     character (either '.', '|', '*', '?', '\\') and extracting the relevant components.
 //   - If a '.' is encountered, the part before it is extracted as the `Part`, and the string following it is assigned
-//     to `Path`. If there are modifiers or JSON structure indicators (like '[' or '{'), the path is marked accordingly.
+//     to `Path`. If there are transformers or JSON structure indicators (like '[' or '{'), the path is marked accordingly.
 //   - If a pipe ('|') is found, the `Part` is separated from the string after the pipe, and the `Piped` flag is set to true.
 //   - Wildcard characters ('*' or '?') are detected, and the `Wild` flag is set.
 //   - Escape sequences (indicated by '\\') are processed by appending the escaped character(s) and stripping the escape character.
 //   - If no special characters are found, the entire path is assigned to `Part`, and the function returns the parsed result.
-func parsePathWithModifiers(path string) (r wildcard) {
+func parsePathWithTransformers(path string) (r wildcard) {
 	for i := 0; i < len(path); i++ {
 		if path[i] == '|' {
 			r.Part = path[:i]
@@ -2245,7 +2245,7 @@ func parsePathWithModifiers(path string) (r wildcard) {
 		}
 		if path[i] == '.' {
 			r.Part = path[:i]
-			if i < len(path)-1 && isModifierOrJSONStart(path[i+1:]) {
+			if i < len(path)-1 && isTransformerOrJSONStart(path[i+1:]) {
 				r.Pipe = path[i+1:]
 				r.Piped = true
 			} else {
@@ -2275,7 +2275,7 @@ func parsePathWithModifiers(path string) (r wildcard) {
 						continue
 					} else if path[i] == '.' {
 						r.Part = string(escapePart)
-						if i < len(path)-1 && isModifierOrJSONStart(path[i+1:]) {
+						if i < len(path)-1 && isTransformerOrJSONStart(path[i+1:]) {
 							r.Pipe = path[i+1:]
 							r.Piped = true
 						} else {
@@ -2540,14 +2540,14 @@ func parseJSONAny(json string, i int, hit bool) (int, Context, bool) {
 //
 // The function processes a JSON object (denoted by curly braces '{' and '}') and looks for matching keys. It handles both
 // simple key-value pairs and nested structures (objects or arrays) within the object. If the path to a key contains wildcards
-// or modifiers, the function matches the keys accordingly. It also processes escape sequences for both keys and values,
+// or transformers, the function matches the keys accordingly. It also processes escape sequences for both keys and values,
 // ensuring proper handling of special characters within JSON strings.
 //
 // Parameters:
 //   - `c`: A pointer to a `parser` object that holds the JSON string (`json`), and context information (`value`).
 //   - `i`: The current index in the JSON string from where the parsing should begin. This index should point to the
 //     opening curly brace '{' of the JSON object.
-//   - `path`: The string representing the path to be parsed. It may include modifiers or wildcards, guiding the matching
+//   - `path`: The string representing the path to be parsed. It may include transformers or wildcards, guiding the matching
 //     of specific keys in the object.
 //
 // Returns:
@@ -2564,25 +2564,25 @@ func parseJSONAny(json string, i int, hit bool) (int, Context, bool) {
 // Details:
 //   - The function first searches for a key enclosed in double quotes ('"'). It handles both normal keys and escaped keys.
 //   - It then checks if the key matches the specified path, which may contain wildcards or exact matches.
-//   - If the key matches and there are no more modifiers in the path, the corresponding value is extracted and stored in the `parser` object.
+//   - If the key matches and there are no more transformers in the path, the corresponding value is extracted and stored in the `parser` object.
 //   - If the key points to a nested object or array, the function recursively parses those structures to extract the required data.
 //   - The function handles various types of JSON values including strings, numbers, booleans, objects, and arrays.
 //   - The function also handles escape sequences within JSON strings and ensures that they are processed correctly.
 //
 // Notes:
-//   - The function makes use of the `parsePathWithModifiers` function to parse and process the path for matching keys.
+//   - The function makes use of the `parsePathWithtransformers` function to parse and process the path for matching keys.
 //   - If the path contains wildcards ('*' or '?'), the function uses `matchSafely` to ensure safe matching within a complexity limit.
 //   - If the key is matched, the function will return the parsed value. If no match is found, the parsing continues.
 //
 // Key functions used:
-//   - `parsePathWithModifiers`: Extracts and processes the path to identify the key and modifiers.
+//   - `parsePathWithtransformers`: Extracts and processes the path to identify the key and transformers.
 //   - `matchSafely`: Performs the safe matching of the key using a wildcard pattern, avoiding excessive complexity.
 func parseJSONObject(c *parser, i int, path string) (int, bool) {
 	var _match, keyEsc, escVal, ok, hit bool
 	var key, val string
-	pathModifiers := parsePathWithModifiers(path)
-	if !pathModifiers.More && pathModifiers.Piped {
-		c.pipe = pathModifiers.Pipe
+	pathtransformers := parsePathWithTransformers(path)
+	if !pathtransformers.More && pathtransformers.Piped {
+		c.pipe = pathtransformers.Pipe
 		c.piped = true
 	}
 	for i < len(c.json) {
@@ -2636,20 +2636,20 @@ func parseJSONObject(c *parser, i int, path string) (int, bool) {
 		if !ok {
 			return i, false
 		}
-		if pathModifiers.Wild {
+		if pathtransformers.Wild {
 			if keyEsc {
-				_match = matchSafely(unescape(key), pathModifiers.Part)
+				_match = matchSafely(unescape(key), pathtransformers.Part)
 			} else {
-				_match = matchSafely(key, pathModifiers.Part)
+				_match = matchSafely(key, pathtransformers.Part)
 			}
 		} else {
 			if keyEsc {
-				_match = pathModifiers.Part == unescape(key)
+				_match = pathtransformers.Part == unescape(key)
 			} else {
-				_match = pathModifiers.Part == key
+				_match = pathtransformers.Part == key
 			}
 		}
-		hit = _match && !pathModifiers.More
+		hit = _match && !pathtransformers.More
 		for ; i < len(c.json); i++ {
 			var num bool
 			switch c.json[i] {
@@ -2673,7 +2673,7 @@ func parseJSONObject(c *parser, i int, path string) (int, bool) {
 				}
 			case '{':
 				if _match && !hit {
-					i, hit = parseJSONObject(c, i+1, pathModifiers.Path)
+					i, hit = parseJSONObject(c, i+1, pathtransformers.Path)
 					if hit {
 						return i, true
 					}
@@ -2687,7 +2687,7 @@ func parseJSONObject(c *parser, i int, path string) (int, bool) {
 				}
 			case '[':
 				if _match && !hit {
-					i, hit = analyzeArray(c, i+1, pathModifiers.Path)
+					i, hit = analyzeArray(c, i+1, pathtransformers.Path)
 					if hit {
 						return i, true
 					}
@@ -2899,7 +2899,7 @@ func analyzeQuery(query string) (
 //   - If the path contains a '|', the portion before it is stored in `Part`, and the portion after it is stored in `Pipe`.
 //     The `Piped` flag is set to `true`.
 //   - If the path contains a '.', the portion before it is stored in `Part`, and the remaining part in `Path`.
-//     If the path after the '.' starts with a modifier or JSON, it is stored in `Pipe` instead, with `Piped` set to `true`.
+//     If the path after the '.' starts with a transformer or JSON, it is stored in `Pipe` instead, with `Piped` set to `true`.
 //   - If the path contains a '#', the `Arch` flag is set to `true`. It may also indicate an archive log (`#.key`) or a query (`#(...)`).
 //     Queries are parsed using the `analyzeQuery` function, and relevant fields in the `query` struct are populated.
 //   - For archive logs starting with `#.` (e.g., `#.key`), the `ALogOk` flag is set, and `ALogKey` contains the key.
@@ -2949,7 +2949,7 @@ func analyzePath(path string) (r metadata) {
 		}
 		if path[i] == '.' {
 			r.Part = path[:i]
-			if !r.Arch && i < len(path)-1 && isModifierOrJSONStart(path[i+1:]) {
+			if !r.Arch && i < len(path)-1 && isTransformerOrJSONStart(path[i+1:]) {
 				r.Pipe = path[i+1:]
 				r.Piped = true
 			} else {
@@ -3392,14 +3392,14 @@ func analyzeArray(c *parser, i int, path string) (int, bool) {
 //     returns an empty slice and `false` to indicate a failure.
 //
 // Flow:
-//   - The function first initializes tracking variables like `modifier`, `depth`, `colon`, and `start`.
+//   - The function first initializes tracking variables like `transformer`, `depth`, `colon`, and `start`.
 //   - It iterates through the path, checking for different characters, such as backslashes (escape),
 //     colons (for name-path pair separation), commas (for separating selectors), and brackets/braces (for
 //     nested structures).
 //   - If a valid selector is found, it is stored in the `selectors` slice.
 //   - The function returns the parsed selectors, the remaining path, and a success flag.
 func analyzeSubSelectors(path string) (selectors []subSelector, out string, ok bool) {
-	modifier := 0
+	transformer := 0
 	depth := 1
 	colon := 0
 	start := 1
@@ -3414,7 +3414,7 @@ func analyzeSubSelectors(path string) (selectors []subSelector, out string, ok b
 		}
 		selectors = append(selectors, selector)
 		colon = 0
-		modifier = 0
+		transformer = 0
 		start = i + 1
 	}
 	for ; i < len(path); i++ {
@@ -3422,11 +3422,11 @@ func analyzeSubSelectors(path string) (selectors []subSelector, out string, ok b
 		case '\\':
 			i++
 		case '@':
-			if modifier == 0 && i > 0 && (path[i-1] == '.' || path[i-1] == '|') {
-				modifier = i
+			if transformer == 0 && i > 0 && (path[i-1] == '.' || path[i-1] == '|') {
+				transformer = i
 			}
 		case ':':
-			if modifier == 0 && colon == 0 && depth == 1 {
+			if transformer == 0 && colon == 0 && depth == 1 {
 				colon = i
 			}
 		case ',':
@@ -3458,45 +3458,45 @@ func analyzeSubSelectors(path string) (selectors []subSelector, out string, ok b
 	return
 }
 
-// adjustModifier parses a given path to identify a modifier function and its associated arguments,
-// then applies the modifier to the provided JSON string based on the parsed path. This function expects
-// that the path starts with a '@', indicating the presence of a modifier. It identifies the modifier's
+// adjustTransformer parses a given path to identify a transformer function and its associated arguments,
+// then applies the transformer to the provided JSON string based on the parsed path. This function expects
+// that the path starts with a '@', indicating the presence of a transformer. It identifies the transformer's
 // name, extracts any potential arguments, and returns the modified result along with the remaining path
-// after processing the modifier.
+// after processing the transformer.
 //
 // Parameters:
-//   - json: A string containing the JSON data that the modifier will operate on.
-//   - path: A string representing the path, which includes a modifier prefixed by '@'. The path may
-//     contain an optional argument to be processed by the modifier.
+//   - json: A string containing the JSON data that the transformer will operate on.
+//   - path: A string representing the path, which includes a transformer prefixed by '@'. The path may
+//     contain an optional argument to be processed by the transformer.
 //
 // Returns:
-//   - pYield: The remaining portion of the path after parsing the modifier and its arguments.
-//   - result: The result obtained by applying the modifier to the JSON string, or an empty string
-//     if no valid modifier is found.
-//   - ok: A boolean indicating whether the modifier was successfully identified and applied. If true,
-//     the modifier was found and applied; if false, the modifier was not found.
+//   - pYield: The remaining portion of the path after parsing the transformer and its arguments.
+//   - result: The result obtained by applying the transformer to the JSON string, or an empty string
+//     if no valid transformer is found.
+//   - ok: A boolean indicating whether the transformer was successfully identified and applied. If true,
+//     the transformer was found and applied; if false, the transformer was not found.
 //
 // Example Usage:
 //
 //	json := `{"key": "value"}`
-//	path := "@modifierName:argument"
-//	pYield, result, ok := adjustModifier(json, path)
-//	// pYield: remaining path after the modifier
-//	// result: the modified JSON result based on the modifier applied
-//	// ok: true if the modifier was found and applied successfully
+//	path := "@transformerName:argument"
+//	pYield, result, ok := adjustTransformer(json, path)
+//	// pYield: remaining path after the transformer
+//	// result: the modified JSON result based on the transformer applied
+//	// ok: true if the transformer was found and applied successfully
 //
 // Details:
 //   - The function first removes the '@' character from the beginning of the path and processes the
-//     remaining portion of the path to extract the modifier's name and its optional arguments.
+//     remaining portion of the path to extract the transformer's name and its optional arguments.
 //   - The function handles various formats of arguments, including JSON-like objects, arrays, strings,
 //     and other specific cases based on the character delimiters such as '{', '[', '"', or '('.
-//   - If a valid modifier function is found in the `modifiers` map, it applies the function to the JSON
-//     string and returns the result along with the remaining path. If no valid modifier is found, it
+//   - If a valid transformer function is found in the `transformers` map, it applies the function to the JSON
+//     string and returns the result along with the remaining path. If no valid transformer is found, it
 //     returns the original path and an empty result.
-func adjustModifier(json, path string) (pathYield, result string, ok bool) {
+func adjustTransformer(json, path string) (pathYield, result string, ok bool) {
 	name := path[1:] // remove the '@' character and initialize the name to the remaining path.
 	var hasArgs bool
-	// iterate over the path to find the modifier name and any arguments.
+	// iterate over the path to find the transformer name and any arguments.
 	for i := 1; i < len(path); i++ {
 		// check for argument delimiter (':'), process if found.
 		if path[i] == ':' {
@@ -3505,7 +3505,7 @@ func adjustModifier(json, path string) (pathYield, result string, ok bool) {
 			hasArgs = len(pathYield) > 0
 			break
 		}
-		// check for pipe ('|'), dot ('.'), or other delimiters to separate the modifier name and arguments.
+		// check for pipe ('|'), dot ('.'), or other delimiters to separate the transformer name and arguments.
 		if path[i] == '|' {
 			pathYield = path[i:]
 			name = path[1:i]
@@ -3517,7 +3517,7 @@ func adjustModifier(json, path string) (pathYield, result string, ok bool) {
 			break
 		}
 	}
-	// check if the modifier exists in the modifiers map and apply it if found.
+	// check if the transformer exists in the transformers map and apply it if found.
 	if fn, ok := jsonTransformers[name]; ok {
 		var args string
 		if hasArgs { // if arguments are found, parse and handle them.
@@ -3549,10 +3549,10 @@ func adjustModifier(json, path string) (pathYield, result string, ok bool) {
 				pathYield = pathYield[i:] // update the remaining path.
 			}
 		}
-		// apply the modifier function to the JSON data and return the result.
+		// apply the transformer function to the JSON data and return the result.
 		return pathYield, fn(json, args), true
 	}
-	// if no modifier is found, return the path and an empty result.
+	// if no transformer is found, return the path and an empty result.
 	return pathYield, result, false
 }
 

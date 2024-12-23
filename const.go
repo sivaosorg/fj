@@ -1,11 +1,11 @@
 package fj
 
-// DisableModifiers is a global flag that determines whether modifiers should be applied
-// when processing JSON values. If set to true, modifiers will not be applied to the JSON values.
-// If set to false, modifiers will be applied as expected.
-var DisableModifiers = false
+// DisableTransformers is a global flag that determines whether transformers should be applied
+// when processing JSON values. If set to true, transformers will not be applied to the JSON values.
+// If set to false, transformers will be applied as expected.
+var DisableTransformers = false
 
-// jsonTransformers is a map that associates a string key (the modifier type) with a function that
+// jsonTransformers is a map that associates a string key (the transformer type) with a function that
 // takes two string arguments (`json` and `arg`), and returns a modified string. The map is used
 // to apply various transformations to JSON data based on the specified jsonTransformers.
 var jsonTransformers map[string]func(json, arg string) string
