@@ -1,6 +1,7 @@
 package fj
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/sivaosorg/unify4g"
@@ -1065,4 +1066,31 @@ func transformReplaceAll(json, arg string) string {
 		return true
 	})
 	return strings.ReplaceAll(json, target, replacement)
+}
+
+// transformToHex converts the string to its hexadecimal representation.
+//
+// This function converts each character of the input string to its hexadecimal ASCII value.
+//
+// Parameters:
+//   - `json`: The input string to be converted to hexadecimal.
+//   - `arg`: An optional argument that is currently unused.
+//
+// Returns:
+//   - A string containing the hexadecimal representation of the input string.
+//
+// Example Usage:
+//
+//	json := "hello"
+//	result := transformToHex(json, "")
+//	fmt.Println(result) // Output: "68656c6c6f"
+func transformToHex(json, arg string) string {
+	if unify4g.IsEmpty(json) {
+		return json
+	}
+	ctx := Parse(json)
+	if !ctx.IsArray() && !ctx.IsObject() && unify4g.IsPrimitive(ctx.String()) {
+		return fmt.Sprintf("%x", removeDoubleQuotes(json))
+	}
+	return fmt.Sprintf("%x", json)
 }

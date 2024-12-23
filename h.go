@@ -4009,3 +4009,30 @@ func escapeUnsafeChars(component string) string {
 	}
 	return component
 }
+
+// removeDoubleQuotes removes all double quotes (`"`) from the input string.
+//
+// This function is useful when sanitizing input or processing strings where double quotes
+// need to be stripped, such as in JSON keys, configuration files, or user-provided data.
+//
+// Parameters:
+//   - `str`: The input string from which double quotes are to be removed.
+//
+// Returns:
+//   - A new string with all instances of the double-quote character (`"`) removed.
+//     If the input string does not contain any double quotes, it returns the original string unchanged.
+//
+// Example Usage:
+//
+//	str := `"Hello, "world"! "`
+//	result := removeDoubleQuotes(str)
+//	// result: "Hello, world! "
+//
+// Notes:
+//   - The function uses the `strings.ReplaceAll` method, which efficiently replaces all
+//     occurrences of a specified substring (in this case, the double-quote character) with
+//     another substring (in this case, an empty string).
+//   - It is case-sensitive and only affects exact matches of the double-quote character (`"`).
+func removeDoubleQuotes(str string) string {
+	return strings.ReplaceAll(str, `"`, "")
+}
