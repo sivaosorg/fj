@@ -648,8 +648,14 @@ func (ctx Context) String() string {
 	switch ctx.kind {
 	default:
 		return ""
+	case True:
+		return "true"
 	case False:
 		return "false"
+	case String:
+		return ctx.strings
+	case JSON:
+		return ctx.unprocessed
 	case Number:
 		if len(ctx.unprocessed) == 0 {
 			return strconv.FormatFloat(ctx.numeric, 'f', -1, 64)
@@ -664,12 +670,6 @@ func (ctx Context) String() string {
 			}
 		}
 		return ctx.unprocessed
-	case String:
-		return ctx.strings
-	case JSON:
-		return ctx.unprocessed
-	case True:
-		return "true"
 	}
 }
 
@@ -1624,7 +1624,7 @@ func init() {
 	jsonTransformers = map[string]func(json, arg string) string{
 		"trim":       transformTrim,
 		"this":       transformDefault,
-		"valid":      transformJSONValid,
+		"valid":      transformJSONValidity,
 		"pretty":     transformPretty,
 		"minify":     transformMinify,
 		"reverse":    transformReverse,

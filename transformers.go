@@ -444,7 +444,7 @@ func transformJoin(json, arg string) string {
 	return fromBytes2Str(target)
 }
 
-// transformJSONValid ensures that the input JSON is valid before processing it further.
+// transformJSONValidity ensures that the input JSON is valid before processing it further.
 // If the provided JSON string is not valid, the function returns an empty string. If the
 // JSON is valid, the original JSON string is returned unchanged.
 //
@@ -461,13 +461,13 @@ func transformJoin(json, arg string) string {
 //
 //	// Input JSON (valid)
 //	json := `{"name":"Alice","age":25}`
-//	validJSON := transformJSONValid(json, "")
+//	validJSON := transformJSONValidity(json, "")
 //	fmt.Println(validJSON)
 //	// Output: {"name":"Alice","age":25}
 //
 //	// Input JSON (invalid)
 //	json := `{"name":"Alice","age":25`
-//	validJSON := transformJSONValid(json, "")
+//	validJSON := transformJSONValidity(json, "")
 //	fmt.Println(validJSON)
 //	// Output: (empty string)
 //
@@ -478,11 +478,11 @@ func transformJoin(json, arg string) string {
 //     to stop further processing.
 //   - If the JSON is valid, it returns the JSON string unmodified, allowing subsequent
 //     transformations or processing to proceed.
-func transformJSONValid(json, arg string) string {
+func transformJSONValidity(json, arg string) string {
 	if !IsValidJSON(json) {
-		return ""
+		return strings.ToLower(False.String())
 	}
-	return json
+	return strings.ToLower(True.String())
 }
 
 // transformKeys extracts the keys from a JSON object and returns them as a JSON array of strings.
