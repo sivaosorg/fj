@@ -1647,5 +1647,7 @@ func init() {
 		"hex":        transformToHex,
 		"insertAt":   transformInsertAt,
 		"wc":         transformCountWords,
+		"padLeft":    transformPadLeft,
+		"padRight":   transformPadRight,
 	}
 }

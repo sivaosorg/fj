@@ -1194,3 +1194,83 @@ func transformCountWords(json, arg string) string {
 	words := strings.Fields(json)
 	return fmt.Sprintf("%v", len(words))
 }
+
+// transformPadLeft pads the input string with a specified character on the left to a given length.
+//
+// This function adds padding to the left of the string until the string reaches the specified length.
+//
+// Parameters:
+//   - `json`: The input string to be padded.
+//   - `arg`: A JSON string containing the padding character and the desired length. Example: `{"padding": "*", "length": 10}`.
+//
+// Returns:
+//   - A new string with the specified padding added on the left. If the string is already the desired length, it returns unchanged.
+//
+// Example Usage:
+//
+//	json := "Hello"
+//	arg := "{\"padding\": \"*\", \"length\": 10}"
+//	result := transformPadLeft(json, arg)
+//	fmt.Println(result) // Output: "*****Hello"
+func transformPadLeft(json, arg string) string {
+	ctx := Parse(json)
+	value := ctx.String()
+	var padding string
+	var length int
+	Parse(arg).Foreach(func(key, value Context) bool {
+		if key.String() == "padding" {
+			padding = value.String()
+		}
+		if key.String() == "length" {
+			length = int(value.Int64())
+		}
+		return true
+	})
+	if length <= len(json) {
+		return json
+	}
+	value = unify4g.TrimWhitespace(trim(value))
+	t := unify4g.JsonN(value)
+	v := strings.Repeat(padding, length-len(t)) + t
+	return v
+}
+
+// transformPadRight pads the input string with a specified character on the right to a given length.
+//
+// This function adds padding to the right of the string until the string reaches the specified length.
+//
+// Parameters:
+//   - `json`: The input string to be padded.
+//   - `arg`: A JSON string containing the padding character and the desired length. Example: `{"padding": "*", "length": 10}`.
+//
+// Returns:
+//   - A new string with the specified padding added on the right. If the string is already the desired length, it returns unchanged.
+//
+// Example Usage:
+//
+//	json := "Hello"
+//	arg := "{\"padding\": \"*\", \"length\": 10}"
+//	result := transformPadRight(json, arg)
+//	fmt.Println(result) // Output: "Hello*****"
+func transformPadRight(json, arg string) string {
+	ctx := Parse(json)
+	value := ctx.String()
+	var padding string
+	var length int
+	Parse(arg).Foreach(func(key, value Context) bool {
+		if key.String() == "padding" {
+			padding = value.String()
+		}
+		if key.String() == "length" {
+			length = int(value.Int64())
+		}
+		return true
+	})
+	if length <= len(json) {
+		return json
+	}
+	value = unify4g.TrimWhitespace(trim(value))
+	t := unify4g.JsonN(value)
+	v := t + strings.Repeat(padding, length-len(t))
+	return v
+}

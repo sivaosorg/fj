@@ -4036,3 +4036,13 @@ func escapeUnsafeChars(component string) string {
 func removeDoubleQuotes(str string) string {
 	return strings.ReplaceAll(str, `"`, "")
 }
+
+// func removePunctuation(input string) string {
+// 	var builder strings.Builder
+// 	for _, char := range input {
+// 		if !unicode.IsPunct(char) { // Check if the character is not punctuation
+// 			builder.WriteRune(char) // Add non-punctuation characters to the builder
+// 		}
+// 	}
+// 	return builder.String()
+// }
