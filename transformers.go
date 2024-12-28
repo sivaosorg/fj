@@ -1031,6 +1031,41 @@ func transformKebabCase(json, arg string) string {
 	return strings.ToLower(json)
 }
 
+// transformReplaceSubstring replaces a specific substring within the input string with another string.
+//
+// This function can be used to replace any substring in the input string with a given replacement.
+//
+// Parameters:
+//   - `json`: The input string in which the replacement will occur.
+//   - `arg`: A JSON string containing the target and replacement substrings.
+//     Example: `{"target": "apple", "replacement": "orange"}`.
+//
+// Returns:
+//   - The string with the target substring replaced. If the input is empty, it returns unchanged.
+//
+// Example Usage:
+//
+//	json := "I love apple pie"
+//	arg := "{\"target\":\"apple\",\"replacement\":\"orange\"}"
+//	result := transformReplaceSubstring(json, arg)
+//	fmt.Println(result) // Output: "I love orange pie"
+func transformReplace(json, arg string) string {
+	if unify4g.IsEmpty(json) {
+		return json
+	}
+	var target, replacement string
+	Parse(arg).Foreach(func(key, value Context) bool {
+		if key.String() == "target" {
+			target = value.String()
+		}
+		if key.String() == "replacement" {
+			replacement = value.String()
+		}
+		return true
+	})
+	return strings.Replace(json, target, replacement, -1)
+}
+
 // transformReplaceAll replaces all occurrences of a target substring with a replacement string.
 //
 // This function performs a global replacement in the input string, replacing every occurrence

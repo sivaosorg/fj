@@ -1642,6 +1642,7 @@ func init() {
 		"snakeCase":  transformSnakeCase,
 		"camelCase":  transformCamelCase,
 		"kebabCase":  transformKebabCase,
+		"replace":    transformReplace,
 		"replaceAll": transformReplaceAll,
 		"hex":        transformToHex,
 	}
