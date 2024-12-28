@@ -1168,3 +1168,29 @@ func transformInsertAt(json, arg string) string {
 	}
 	return json[:index] + insert + json[index:]
 }
+
+// transformCountWords counts the number of words in the input string.
+//
+// This function splits the string into words (by spaces) and returns the count of the words.
+//
+// Parameters:
+//   - `json`: The input string to count the words in.
+//   - `arg`: An optional string argument that is currently unused.
+//
+// Returns:
+//   - An integer representing the number of words in the input string. If the string is empty, it returns 0.
+//
+// Example Usage:
+//
+//	json := "Hello world"
+//	result := transformCountWords(json, "")
+//	fmt.Println(result) // Output: 2
+func transformCountWords(json, arg string) string {
+	ctx := Parse(json)
+	json = unify4g.TrimWhitespace(ctx.String())
+	if unify4g.IsEmpty(json) || unify4g.IsBlank(json) || unify4g.IsWhitespace(json) {
+		return json
+	}
+	words := strings.Fields(json)
+	return fmt.Sprintf("%v", len(words))
+}
