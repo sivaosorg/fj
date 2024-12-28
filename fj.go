@@ -1645,6 +1645,7 @@ func init() {
 		"replace":    transformReplace,
 		"replaceAll": transformReplaceAll,
 		"hex":        transformToHex,
+		"bin":        transformToBinary,
 		"insertAt":   transformInsertAt,
 		"wc":         transformCountWords,
 		"padLeft":    transformPadLeft,

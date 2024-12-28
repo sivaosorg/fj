@@ -1130,6 +1130,38 @@ func transformToHex(json, arg string) string {
 	return fmt.Sprintf("%x", json)
 }
 
+// transformToBinary converts the string to its binary representation.
+//
+// This function converts each character of the input string to its binary ASCII value.
+//
+// Parameters:
+//   - `json`: The input string to be converted to binary.
+//   - `arg`: An optional argument that is currently unused.
+//
+// Returns:
+//   - A string containing the binary representation of the input string.
+//
+// Example Usage:
+//
+//	json := "hello"
+//	result := transformToBinary(json, "")
+//	fmt.Println(result) // Output: "11010001101101110110011011001101111"
+func transformToBinary(json, arg string) string {
+	ctx := Parse(json)
+	if !ctx.IsArray() && !ctx.IsObject() && unify4g.IsPrimitive(ctx.String()) {
+		var bin string
+		for _, r := range ctx.String() {
+			bin += fmt.Sprintf("%08b", r)
+		}
+		return bin
+	}
+	var bin string
+	for _, r := range json {
+		bin += fmt.Sprintf("%08b", r)
+	}
+	return bin
+}
+
 // transformInsertAt inserts a specified string at a given index in the input string.
 //
 // This function allows you to insert a string at a particular position in the original string.
