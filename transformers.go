@@ -1129,3 +1129,42 @@ func transformToHex(json, arg string) string {
 	}
 	return fmt.Sprintf("%x", json)
 }
+
+// transformInsertAt inserts a specified string at a given index in the input string.
+//
+// This function allows you to insert a string at a particular position in the original string.
+//
+// Parameters:
+//   - `json`: The original string where the insertion will happen.
+//   - `arg`: A JSON string containing the position (`index`) and the string to insert (`insert`).
+//     Example: `{"index": 5, "insert": "XYZ"}`.
+//
+// Returns:
+//   - A new string with the specified insertion. If the input is empty, it returns unchanged.
+//
+// Example Usage:
+//
+//	json := "HelloWorld"
+//	arg := "{\"index\":5,\"insert\":\"XYZ\"}"
+//	result := transformInsertAt(json, arg)
+//	fmt.Println(result) // Output: "HelloXYZWorld"
+func transformInsertAt(json, arg string) string {
+	if unify4g.IsEmpty(json) {
+		return json
+	}
+	var index int
+	var insert string
+	Parse(arg).Foreach(func(key, value Context) bool {
+		if key.String() == "index" {
+			index = int(value.Numeric())
+		}
+		if key.String() == "insert" {
+			insert = value.String()
+		}
+		return true
+	})
+	if index < 0 || index > len(json) {
+		return json // If index is out of bounds, return the original string.
+	}
+	return json[:index] + insert + json[index:]
+}
