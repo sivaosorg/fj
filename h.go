@@ -1,6 +1,7 @@
 package fj
 
 import (
+	"reflect"
 	"strconv"
 	"strings"
 	"unicode/utf16"
@@ -1375,7 +1376,7 @@ func lastSegment(path string) string {
 //   - The function iterates through each character of the string and checks whether it is a printable character and whether it
 //     is not one of the restricted special characters. If any invalid character is found, the function returns false immediately.
 func isValidName(component string) bool {
-	if unify4g.IsEmpty(component) {
+	if isEmpty(component) {
 		return false
 	}
 	if unify4g.ContainsAny(component, " ") {
@@ -1687,7 +1688,7 @@ func parseStaticValue(path string) (pathStatic, result string, ok bool) {
 //
 //   - The function returns an unchanged string if no whitespace is present.
 func trim(s string) string {
-	if unify4g.IsEmpty(s) {
+	if isEmpty(s) {
 		return s
 	}
 left:
@@ -2105,7 +2106,7 @@ func splitPathPipe(path string) (left, right string, ok bool) {
 //   - If a valid string is found, the function returns the index after the closing quote, the full quoted string, and flags indicating if escape sequences were processed and if the string was properly closed.
 //   - If the string is not correctly closed or contains invalid escape sequences, the function will stop processing and return the current state.
 func parseString(json string, i int) (int, string, bool, bool) {
-	if unify4g.IsEmpty(json) || i < 0 {
+	if isEmpty(json) || i < 0 {
 		return i, json, false, false
 	}
 	var s = i
@@ -2174,7 +2175,7 @@ func parseString(json string, i int) (int, string, bool, bool) {
 //   - The function stops parsing as soon as it encounters a non-numeric character such as whitespace, a comma, or a closing JSON delimiter (`}` or `]`), which indicates the end of the numeric value in the JSON structure.
 //   - The function returns the parsed numeric string along with the index that follows the number's last character.
 func parseNumeric(json string, i int) (int, string) {
-	if unify4g.IsEmpty(json) || i < 0 {
+	if isEmpty(json) || i < 0 {
 		return i, json
 	}
 	var s = i
@@ -2336,7 +2337,7 @@ func parsePathWithTransformers(path string) (r wildcard) {
 //   - The function stops parsing as soon as it encounters a non-alphabetic character such as whitespace, a comma, or a closing JSON delimiter (`}` or `]`), which indicates the end of the literal value in the JSON structure.
 //   - The function returns the parsed literal string along with the index that follows the literal's last character.
 func parseJSONLiteral(json string, i int) (int, string) {
-	if unify4g.IsEmpty(json) || i < 0 {
+	if isEmpty(json) || i < 0 {
 		return i, json
 	}
 	var s = i
@@ -2381,7 +2382,7 @@ func parseJSONLiteral(json string, i int) (int, string) {
 //   - The function ensures that nested structures (arrays, objects, or parentheses) are ignored, effectively "squashing" the
 //     content into the outermost structure, while the depth ensures that only the highest-level structure is returned.
 func parseJSONSquash(json string, i int) (int, string) {
-	if unify4g.IsEmpty(json) || i < 0 {
+	if isEmpty(json) || i < 0 {
 		return i, json
 	}
 	s := i
@@ -4037,12 +4038,94 @@ func removeDoubleQuotes(str string) string {
 	return strings.ReplaceAll(str, `"`, "")
 }
 
-// func removePunctuation(input string) string {
-// 	var builder strings.Builder
-// 	for _, char := range input {
-// 		if !unicode.IsPunct(char) { // Check if the character is not punctuation
-// 			builder.WriteRune(char) // Add non-punctuation characters to the builder
-// 		}
-// 	}
-// 	return builder.String()
-// }
+// isEmpty checks if the provided string is empty or consists solely of whitespace characters.
+//
+// The function trims leading and trailing whitespace from the input string `s` using
+// strings.TrimSpace. It then evaluates the length of the trimmed string. If the length is
+// zero, it indicates that the original string was either empty or contained only whitespace,
+// and the function returns true. Otherwise, it returns false.
+//
+// Parameters:
+//   - `s`: A string that needs to be checked for emptiness.
+//
+// Returns:
+//
+//	A boolean value:
+//	 - true if the string is empty or contains only whitespace characters;
+//	 - false if the string contains any non-whitespace characters.
+//
+// Example:
+//
+//	result := isEmpty("   ") // result will be true
+//	result = isEmpty("Hello") // result will be false
+func isEmpty(s string) bool {
+	trimmed := strings.TrimSpace(s)
+	return len(trimmed) == 0
+}
+
+// isNotEmpty checks if the provided string is not empty or does not consist solely of whitespace characters.
+//
+// This function leverages the IsEmpty function to determine whether the input string `s`
+// is empty or contains only whitespace. It returns the negation of the result from IsEmpty.
+// If IsEmpty returns true (indicating the string is empty or whitespace), isNotEmpty will return false,
+// and vice versa.
+//
+// Parameters:
+//   - `s`: A string that needs to be checked for non-emptiness.
+//
+// Returns:
+//
+//		 A boolean value:
+//	  - true if the string contains at least one non-whitespace character;
+//	  - false if the string is empty or contains only whitespace characters.
+//
+// Example:
+//
+//	result := isNotEmpty("Hello") // result will be true
+//	result = isNotEmpty("   ") // result will be false
+func isNotEmpty(s string) bool {
+	return !isEmpty(s)
+}
+
+// isPrimitive checks whether the given value is a primitive type in Go.
+//
+// Primitive types include:
+//   - Signed integers: int, int8, int16, int32, int64
+//   - Unsigned integers: uint, uint8, uint16, uint32, uint64, uintptr
+//   - Floating-point numbers: float32, float64
+//   - Complex numbers: complex64, complex128
+//   - Boolean: bool
+//   - String: string
+//
+// The function first checks if the input value is `nil`, returning `false` if so. Otherwise, it uses reflection to determine
+// the type of the value and compares it against known primitive types.
+//
+// Parameters:
+//   - `value`: An interface{} that can hold any Go value. The function checks the type of this value.
+//
+// Returns:
+//   - `true` if the value is of a primitive type.
+//   - `false` if the value is `nil` or not a primitive type.
+//
+// Example:
+//
+//	primitive := 42
+//	if isPrimitive(primitive) {
+//	    fmt.Println("The value is a primitive type.")
+//	} else {
+//	    fmt.Println("The value is not a primitive type.")
+//	}
+func isPrimitive(value interface{}) bool {
+	if value == nil {
+		return false
+	}
+	switch reflect.TypeOf(value).Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr,
+		reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128,
+		reflect.Bool, reflect.String:
+		return true
+	default:
+		return false
+	}
+}

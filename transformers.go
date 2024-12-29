@@ -305,7 +305,7 @@ func transformFlatten(json, arg string) string {
 		return json
 	}
 	var deep bool
-	if unify4g.IsNotEmpty(arg) {
+	if isNotEmpty(arg) {
 		Parse(arg).Foreach(func(key, value Context) bool {
 			if key.String() == "deep" {
 				deep = value.Bool()
@@ -391,7 +391,7 @@ func transformJoin(json, arg string) string {
 		return json
 	}
 	var preserve bool
-	if unify4g.IsNotEmpty(arg) {
+	if isNotEmpty(arg) {
 		Parse(arg).Foreach(func(key, value Context) bool {
 			if key.String() == "preserve" {
 				preserve = value.Bool()
@@ -861,7 +861,7 @@ func transformSearch(json, arg string) string {
 //   - This function uses the standard Go `strings.ToUpper` method to convert the string
 //     to uppercase, which applies the transformation to every character in the string.
 func transformUppercase(json, arg string) string {
-	if unify4g.IsEmpty(json) {
+	if isEmpty(json) {
 		return json
 	}
 	return strings.ToUpper(json)
@@ -891,7 +891,7 @@ func transformUppercase(json, arg string) string {
 //   - This function uses the standard Go `strings.ToLower` method to convert the string
 //     to lowercase, which applies the transformation to every character in the string.
 func transformLowercase(json, arg string) string {
-	if unify4g.IsEmpty(json) {
+	if isEmpty(json) {
 		return json
 	}
 	return strings.ToLower(json)
@@ -918,7 +918,7 @@ func transformLowercase(json, arg string) string {
 //	result := transformReverse(json, "")
 //	fmt.Println(result) // Output: "}52ega,\"ecilA\":\"emam{"
 func transformFlip(json, arg string) string {
-	if unify4g.IsEmpty(json) {
+	if isEmpty(json) {
 		return json
 	}
 	runes := []rune(json)
@@ -971,7 +971,7 @@ func transformTrim(json, arg string) string {
 //	result := transformSnakeCase(json, "")
 //	fmt.Println(result) // Output: "{\"first_name\":\"alice\",\"last_name\":\"smith\"}"
 func transformSnakeCase(json, arg string) string {
-	if unify4g.IsEmpty(json) {
+	if isEmpty(json) {
 		return json
 	}
 	// Replace spaces with underscores, convert to lowercase.
@@ -997,7 +997,7 @@ func transformSnakeCase(json, arg string) string {
 //	result := transformCamelCase(json, "")
 //	fmt.Println(result) // Output: "{\"firstName\":\"alice\",\"lastName\":\"smith\"}"
 func transformCamelCase(json, arg string) string {
-	if unify4g.IsEmpty(json) {
+	if isEmpty(json) {
 		return json
 	}
 	words := strings.Fields(json)
@@ -1023,7 +1023,7 @@ func transformCamelCase(json, arg string) string {
 //	result := transformKebabCase(json, "")
 //	fmt.Println(result) // Output: "{\"first-name\":\"alice\",\"last-name\":\"smith\"}"
 func transformKebabCase(json, arg string) string {
-	if unify4g.IsEmpty(json) {
+	if isEmpty(json) {
 		return json
 	}
 	// Replace spaces with hyphens, convert to lowercase.
@@ -1050,7 +1050,7 @@ func transformKebabCase(json, arg string) string {
 //	result := transformReplaceSubstring(json, arg)
 //	fmt.Println(result) // Output: "I love orange pie"
 func transformReplace(json, arg string) string {
-	if unify4g.IsEmpty(json) {
+	if isEmpty(json) {
 		return json
 	}
 	var target, replacement string
@@ -1087,7 +1087,7 @@ func transformReplace(json, arg string) string {
 //	result := transformReplaceAll(json, arg)
 //	fmt.Println(result) // Output: "baz bar baz"
 func transformReplaceAll(json, arg string) string {
-	if unify4g.IsEmpty(json) {
+	if isEmpty(json) {
 		return json
 	}
 	var target, replacement string
@@ -1120,11 +1120,11 @@ func transformReplaceAll(json, arg string) string {
 //	result := transformToHex(json, "")
 //	fmt.Println(result) // Output: "68656c6c6f"
 func transformToHex(json, arg string) string {
-	if unify4g.IsEmpty(json) {
+	if isEmpty(json) {
 		return json
 	}
 	ctx := Parse(json)
-	if !ctx.IsArray() && !ctx.IsObject() && unify4g.IsPrimitive(ctx.String()) {
+	if !ctx.IsArray() && !ctx.IsObject() && isPrimitive(ctx.String()) {
 		return fmt.Sprintf("%x", removeDoubleQuotes(json))
 	}
 	return fmt.Sprintf("%x", json)
@@ -1148,7 +1148,7 @@ func transformToHex(json, arg string) string {
 //	fmt.Println(result) // Output: "11010001101101110110011011001101111"
 func transformToBinary(json, arg string) string {
 	ctx := Parse(json)
-	if !ctx.IsArray() && !ctx.IsObject() && unify4g.IsPrimitive(ctx.String()) {
+	if !ctx.IsArray() && !ctx.IsObject() && isPrimitive(ctx.String()) {
 		var bin string
 		for _, r := range ctx.String() {
 			bin += fmt.Sprintf("%08b", r)
@@ -1181,7 +1181,7 @@ func transformToBinary(json, arg string) string {
 //	result := transformInsertAt(json, arg)
 //	fmt.Println(result) // Output: "HelloXYZWorld"
 func transformInsertAt(json, arg string) string {
-	if unify4g.IsEmpty(json) {
+	if isEmpty(json) {
 		return json
 	}
 	var index int
@@ -1220,7 +1220,7 @@ func transformInsertAt(json, arg string) string {
 func transformCountWords(json, arg string) string {
 	ctx := Parse(json)
 	json = unify4g.TrimWhitespace(ctx.String())
-	if unify4g.IsEmpty(json) || unify4g.IsBlank(json) || unify4g.IsWhitespace(json) {
+	if isEmpty(json) || unify4g.IsBlank(json) || unify4g.IsWhitespace(json) {
 		return json
 	}
 	words := strings.Fields(json)

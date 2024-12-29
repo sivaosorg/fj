@@ -4,8 +4,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/sivaosorg/unify4g"
 )
 
 // Parse parses a JSON string and returns a Context representing the parsed value.
@@ -574,7 +572,7 @@ func AddTransformer(name string, fn func(json, arg string) string) {
 //     for the existence of the specified transformer.
 //   - It is thread-safe when used only to query the existence of a transformer.
 func IsTransformerRegistered(name string) bool {
-	if unify4g.IsEmpty(name) {
+	if isEmpty(name) {
 		return false
 	}
 	if len(jsonTransformers) == 0 {
