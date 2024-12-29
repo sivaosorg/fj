@@ -1,5 +1,7 @@
 package fj
 
+import "regexp"
+
 // DisableTransformers is a global flag that determines whether transformers should be applied
 // when processing JSON values. If set to true, transformers will not be applied to the JSON values.
 // If set to false, transformers will be applied as expected.
@@ -37,4 +39,13 @@ const (
 	// JSON is a constant representing a raw JSON block.
 	// This type can be used to represent any valid JSON object or array.
 	JSON
+)
+
+var (
+	// RegexpDupSpaces is a precompiled regular expression that matches one or more consecutive
+	// whitespace characters (including spaces, tabs, and newlines). This can be used for tasks
+	// such as normalizing whitespace in strings by replacing multiple whitespace characters
+	// with a single space, or for validating string formats where excessive whitespace should
+	// be trimmed or removed.
+	RegexpDupSpaces = regexp.MustCompile(`\s+`)
 )

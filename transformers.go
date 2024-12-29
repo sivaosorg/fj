@@ -951,7 +951,7 @@ func transformFlip(json, arg string) string {
 // Notes:
 //   - This function uses Go's `strings.TrimSpace` method to remove whitespace characters.
 func transformTrim(json, arg string) string {
-	return unify4g.TrimWhitespace(trim(json))
+	return trimWhitespace(trim(json))
 }
 
 // transformSnakeCase converts the input string to snake_case format, which is typically used
@@ -1219,8 +1219,8 @@ func transformInsertAt(json, arg string) string {
 //	fmt.Println(result) // Output: 2
 func transformCountWords(json, arg string) string {
 	ctx := Parse(json)
-	json = unify4g.TrimWhitespace(ctx.String())
-	if isEmpty(json) || unify4g.IsBlank(json) || unify4g.IsWhitespace(json) {
+	json = trimWhitespace(ctx.String())
+	if isEmpty(json) || isBlank(json) || isWhitespace(json) {
 		return json
 	}
 	words := strings.Fields(json)
@@ -1261,7 +1261,7 @@ func transformPadLeft(json, arg string) string {
 	if length <= len(json) {
 		return json
 	}
-	value = unify4g.TrimWhitespace(trim(value))
+	value = trimWhitespace(trim(value))
 	t := unify4g.JsonN(value)
 	v := strings.Repeat(padding, length-len(t)) + t
 	return v
@@ -1301,7 +1301,7 @@ func transformPadRight(json, arg string) string {
 	if length <= len(json) {
 		return json
 	}
-	value = unify4g.TrimWhitespace(trim(value))
+	value = trimWhitespace(trim(value))
 	t := unify4g.JsonN(value)
 	v := t + strings.Repeat(padding, length-len(t))
 	return v

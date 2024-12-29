@@ -2,8 +2,10 @@ package fj
 
 import (
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
+	"unicode"
 	"unicode/utf16"
 	"unicode/utf8"
 	"unsafe"
@@ -4128,4 +4130,102 @@ func isPrimitive(value interface{}) bool {
 	default:
 		return false
 	}
+}
+
+// trimWhitespace removes extra whitespace from the input string,
+// replacing any sequence of whitespace characters with a single space.
+//
+// This function first checks if the input string `s` is empty or consists solely of whitespace
+// using the IsEmpty function. If so, it returns an empty string. If the string contains
+// non-whitespace characters, it utilizes a precompiled regular expression (regexpDupSpaces)
+// to identify and replace all sequences of whitespace characters (including spaces, tabs, and
+// newlines) with a single space. This helps to normalize whitespace in the string.
+//
+// Parameters:
+// - `s`: The input string from which duplicate whitespace needs to be removed.
+//
+// Returns:
+//   - A string with all sequences of whitespace characters replaced by a single space.
+//     If the input string is empty or only contains whitespace, an empty string is returned.
+//
+// Example:
+//
+//	result := trimWhitespace("This   is  an example.\n\nThis is another line.") // result will be "This is an example. This is another line."
+func trimWhitespace(s string) string {
+	if isEmpty(s) {
+		return ""
+	}
+	// Use a regular expression to replace all sequences of whitespace characters with a single space.
+	s = RegexpDupSpaces.ReplaceAllString(s, " ")
+	return s
+}
+
+// isWhitespace checks if the provided string contains only whitespace characters.
+//
+// This function iterates through each character of the input string and checks if each character
+// is a whitespace character (spaces, tabs, newlines, etc.) using the `unicode.IsSpace` function.
+// If it encounters any character that is not a whitespace, it returns `false`. If all characters
+// are whitespace, it returns `true`.
+//
+// Parameters:
+//   - `str`: The input string to be checked for whitespace.
+//
+// Returns:
+//   - `true` if the string contains only whitespace characters;
+//     `false` if the string contains any non-whitespace characters.
+//
+// Example:
+//
+//	result1 := isWhitespace("    ") // result1 will be true because the string contains only spaces.
+//	result2 := isWhitespace("Hello") // result2 will be false because the string contains non-whitespace characters.
+//
+// Notes:
+//   - This function is useful for determining if a string is blank in terms of visible content,
+//     which can be important in user input validation or string processing tasks.
+func isWhitespace(str string) bool {
+	for _, c := range str {
+		if !unicode.IsSpace(c) {
+			return false
+		}
+	}
+	return true
+}
+
+// isBlank checks if a string is blank (empty or contains only whitespace).
+//
+// This function determines if the input string `s` is considered blank. A string
+// is considered blank if it is either an empty string or consists solely of
+// whitespace characters (spaces, tabs, newlines, etc.).
+//
+// The function first checks if the string is empty. If it is, it returns `true`.
+// If the string is not empty, it uses a regular expression to check if the
+// string contains only whitespace characters. If the string matches this
+// condition, it also returns `true`. If neither condition is met, the function
+// returns `false`, indicating that the string contains non-whitespace characters.
+//
+// Parameters:
+//   - `s`: The input string to check for blankness.
+//
+// Returns:
+//   - `true` if the string is blank (empty or contains only whitespace);
+//     `false` otherwise.
+//
+// Example:
+//
+//	result1 := isBlank("") // result1 will be true because the string is empty.
+//	result2 := isBlank("   ") // result2 will be true because the string contains only spaces.
+//	result3 := isBlank("Hello") // result3 will be false because the string contains non-whitespace characters.
+//
+// Notes:
+//   - The function uses a regular expression to match strings that consist entirely
+//     of whitespace. The regex `^\s+$` matches strings that contain one or more
+//     whitespace characters from the start to the end of the string.
+func isBlank(s string) bool {
+	if s == "" {
+		return true
+	}
+	if regexp.MustCompile(`^\s+$`).MatchString(s) {
+		return true
+	}
+	return false
 }
