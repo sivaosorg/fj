@@ -4,6 +4,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/sivaosorg/unify4g"
 )
 
 // Parse parses a JSON string and returns a Context representing the parsed value.
@@ -669,6 +671,47 @@ func (ctx Context) String() string {
 		}
 		return ctx.unprocessed
 	}
+}
+
+// StringColored returns a colored string representation of the Context value.
+// It applies the default style defined in `defaultStyle` to the string
+// representation of the Context value.
+//
+// Details:
+//   - The function first retrieves the plain string representation using `ctx.String()`.
+//   - If the string is empty (determined by `isEmpty`), it returns an empty string.
+//   - Otherwise, it applies the coloring rules from `defaultStyle` using the
+//     `unify4g.Color` function.
+//
+// Returns:
+//   - string: A colored string representation of the Context value if not empty.
+//     Returns an empty string for empty or invalid Context values.
+//
+// Example Usage:
+//
+//	ctx := Context{kind: True}
+//	fmt.Println(ctx.StringColored()) // Output: "\033[1;35mtrue\033[0m" (colored)
+//
+// Notes:
+//   - Requires the `unify4g` library for styling and the `isEmpty` utility function
+//     to check for empty strings.
+func (ctx Context) StringColored() string {
+	s := []byte(ctx.String())
+	if isEmpty(string(s)) {
+		return ""
+	}
+	return string(unify4g.Color(s, defaultStyle))
+}
+
+func (ctx Context) WithStringColored(style *unify4g.Style) string {
+	s := []byte(ctx.String())
+	if isEmpty(string(s)) {
+		return ""
+	}
+	if style == nil {
+		style = defaultStyle
+	}
+	return string(unify4g.Color(s, style))
 }
 
 // Bool converts the Context value into a boolean representation.

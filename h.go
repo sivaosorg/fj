@@ -4156,7 +4156,7 @@ func trimWhitespace(s string) string {
 		return ""
 	}
 	// Use a regular expression to replace all sequences of whitespace characters with a single space.
-	s = RegexpDupSpaces.ReplaceAllString(s, " ")
+	s = regexpDupSpaces.ReplaceAllString(s, " ")
 	return s
 }
 
