@@ -932,7 +932,7 @@ func (ctx Context) Array() []Context {
 		return []Context{ctx}
 	}
 	r := ctx.parseJSONElements('[', false)
-	return r.ArrayResult
+	return r.arrays
 }
 
 // IsObject checks if the current `Context` represents a JSON object.
@@ -1059,9 +1059,9 @@ func (ctx Context) Value() interface{} {
 	case JSON:
 		r := ctx.parseJSONElements(0, true)
 		if r.valueN == '{' {
-			return r.OpIns
+			return r.operationResults
 		} else if r.valueN == '[' {
-			return r.ArrayIns
+			return r.elements
 		}
 		return nil
 	case True:
@@ -1099,7 +1099,7 @@ func (ctx Context) Map() map[string]Context {
 		return nil
 	}
 	e := ctx.parseJSONElements('{', false)
-	return e.OpMap
+	return e.operations
 }
 
 // Foreach iterates through the values of a JSON object or array, applying the provided iterator function.
@@ -1594,15 +1594,15 @@ func (ctx Context) parseJSONElements(vc byte, valueSize bool) (result queryConte
 	}
 	if result.valueN == '{' {
 		if valueSize {
-			result.OpIns = make(map[string]interface{})
+			result.operationResults = make(map[string]interface{})
 		} else {
-			result.OpMap = make(map[string]Context)
+			result.operations = make(map[string]Context)
 		}
 	} else {
 		if valueSize {
-			result.ArrayIns = make([]interface{}, 0)
+			result.elements = make([]interface{}, 0)
 		} else {
-			result.ArrayResult = make([]Context, 0)
+			result.arrays = make([]Context, 0)
 		}
 	}
 	for ; i < len(json); i++ {
@@ -1651,33 +1651,33 @@ func (ctx Context) parseJSONElements(vc byte, valueSize bool) (result queryConte
 				key = value
 			} else {
 				if valueSize {
-					if _, ok := result.OpIns[key.strings]; !ok {
-						result.OpIns[key.strings] = value.Value()
+					if _, ok := result.operationResults[key.strings]; !ok {
+						result.operationResults[key.strings] = value.Value()
 					}
 				} else {
-					if _, ok := result.OpMap[key.strings]; !ok {
-						result.OpMap[key.strings] = value
+					if _, ok := result.operations[key.strings]; !ok {
+						result.operations[key.strings] = value
 					}
 				}
 			}
 			count++
 		} else {
 			if valueSize {
-				result.ArrayIns = append(result.ArrayIns, value.Value())
+				result.elements = append(result.elements, value.Value())
 			} else {
-				result.ArrayResult = append(result.ArrayResult, value)
+				result.arrays = append(result.arrays, value)
 			}
 		}
 	}
 end:
 	if ctx.indexes != nil {
-		if len(ctx.indexes) != len(result.ArrayResult) {
-			for i := 0; i < len(result.ArrayResult); i++ {
-				result.ArrayResult[i].index = 0
+		if len(ctx.indexes) != len(result.arrays) {
+			for i := 0; i < len(result.arrays); i++ {
+				result.arrays[i].index = 0
 			}
 		} else {
-			for i := 0; i < len(result.ArrayResult); i++ {
-				result.ArrayResult[i].index = ctx.indexes[i]
+			for i := 0; i < len(result.arrays); i++ {
+				result.arrays[i].index = ctx.indexes[i]
 			}
 		}
 	}

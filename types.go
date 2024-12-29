@@ -36,17 +36,17 @@ type Context struct {
 // queryContext is a simplified version of the Context struct,
 // primarily used to store intermediate results for JSON path processing.
 type queryContext struct {
-	// ArrayResult stores a slice of Context elements representing an array result.
-	ArrayResult []Context
+	// arrays stores a slice of Context elements representing an array result.
+	arrays []Context
 
-	// ArrayIns stores a slice of interface{} elements, used for intermediary results.
-	ArrayIns []interface{}
+	// elements stores a slice of interface{} elements, used for intermediary results.
+	elements []interface{}
 
-	// OpMap maps string keys to Context values, used for handling operations on specific paths.
-	OpMap map[string]Context
+	// operations maps string keys to Context values, used for handling operations on specific paths.
+	operations map[string]Context
 
-	// OpIns maps string keys to interface{} values, used for operation results on specific paths.
-	OpIns map[string]interface{}
+	// operationResults maps string keys to interface{} values, used for operation results on specific paths.
+	operationResults map[string]interface{}
 
 	// valueN stores a byte value for a specific operation, likely used for flagging or identifying states.
 	valueN byte
