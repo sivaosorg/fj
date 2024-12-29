@@ -783,6 +783,63 @@ func (ctx Context) Float64() float64 {
 	}
 }
 
+// Float32 converts the Context value into a floating-point representation (Float32).
+// This function provides a similar conversion mechanism as Float64 but with Float32 precision.
+// The conversion depends on the JSON type of the Context:
+//   - For `True` type: Returns 1 as a Float32 value.
+//   - For `String` type: Attempts to parse the string as a floating-point number (Float32 precision).
+//     If the parsing fails, it defaults to 0.
+//   - For `Number` type: Returns the numeric value as a Float32, assuming the Context contains
+//     a numeric value in its `numeric` field.
+//
+// Returns:
+//   - Float32: A floating-point representation of the Context value.
+//
+// Example Usage:
+//
+//	ctx := Context{kind: String, strings: "123.45"}
+//	result := ctx.Float32()
+//	// result: 123.45 (parsed as Float32)
+//
+//	ctx = Context{kind: True}
+//	result = ctx.Float32()
+//	// result: 1 (True is represented as 1.0)
+//
+//	ctx = Context{kind: Number, numeric: 678.9}
+//	result = ctx.Float32()
+//	// result: 678.9 (as Float32)
+//
+// Details:
+//
+//   - For the `True` type, the function always returns 1.0, representing the boolean `true` value.
+//
+//   - For the `String` type, it uses `strconv.ParseFloat` with 32-bit precision to convert the string
+//     into a Float32. If parsing fails (e.g., if the string is not a valid numeric representation),
+//     the function returns 0 as a fallback.
+//
+//   - For the `Number` type, the `numeric` field, assumed to hold a float64 value, is converted
+//     to a Float32 for the return value.
+//
+// Notes:
+//
+//   - The function gracefully handles invalid string inputs for the `String` type by returning 0,
+//     ensuring no runtime panic occurs due to a parsing error.
+//
+//   - Precision may be lost when converting from float64 (`numeric` field) to Float32.
+func (ctx Context) Float32() float32 {
+	switch ctx.kind {
+	default:
+		return 0
+	case True:
+		return 1
+	case String:
+		n, _ := strconv.ParseFloat(ctx.strings, 32)
+		return float32(n)
+	case Number:
+		return float32(ctx.numeric)
+	}
+}
+
 // Time converts the Context value into a time.Time representation.
 // The conversion interprets the Context value as a string in RFC3339 format.
 // If parsing fails, the zero time (0001-01-01 00:00:00 UTC) is returned.
@@ -793,6 +850,55 @@ func (ctx Context) Float64() float64 {
 func (ctx Context) Time() time.Time {
 	v, _ := time.Parse(time.RFC3339, ctx.String())
 	return v
+}
+
+// WithTime parses the Context value into a time.Time representation using a custom format.
+// This function allows for greater flexibility by enabling parsing with user-defined
+// date and time formats, rather than relying on the fixed RFC3339 format used in `Time()`.
+//
+// Parameters:
+//   - format: A string representing the desired format to parse the Context value.
+//     This format must conform to the layouts supported by the `time.Parse` function.
+//
+// Returns:
+//   - time.Time: The parsed time.Time representation of the Context value if parsing succeeds.
+//   - error: An error value if the parsing fails (e.g., due to an invalid format or mismatched value).
+//
+// Example Usage:
+//
+//	ctx := Context{kind: String, strings: "12-25-2023"}
+//	t, err := ctx.WithTime("01-02-2006")
+//	if err != nil {
+//	    fmt.Println("Error parsing time:", err)
+//	} else {
+//	    fmt.Println("Parsed time:", t)
+//	}
+//	// Output: Parsed time: 2023-12-25 00:00:00 +0000 UTC
+//
+// Details:
+//
+//   - The function relies on the `time.Parse` function to convert the string value from the Context
+//     into a time.Time representation.
+//
+//   - The format parameter determines how the Context value should be interpreted. It must match
+//     the layout of the Context's string value. If the value cannot be parsed according to the given
+//     format, the function returns an error.
+//
+//   - Unlike `Time()`, which defaults to the zero time on failure, this function explicitly returns
+//     an error to indicate parsing issues.
+//
+// Notes:
+//
+//   - The function assumes that `ctx.String()` returns a string representation of the Context value.
+//     If the Context does not contain a valid string, the parsing will fail.
+//
+//   - This function is ideal for cases where date and time formats vary or when the RFC3339 standard
+//     is not suitable.
+//
+//   - To handle parsing failures gracefully, always check the returned error before using the
+//     resulting `time.Time` value.
+func (ctx Context) WithTime(format string) (time.Time, error) {
+	return time.Parse(format, ctx.String())
 }
 
 // Array returns an array of `Context` values derived from the current `Context`.
