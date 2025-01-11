@@ -139,6 +139,7 @@ In addition to the `.` symbol, several other characters hold special significanc
 > required.1 # "taxonId"
 > oneOf.0.required # ["alias", "team"]
 > oneOf.0.required.1 # "team"
+> properties.sampleRelationships # { "$ref": "definitions-schema.json#/definitions/sampleRelationships" }
 ```
 
 - **Wildcards**: A key can include special wildcard symbols like `*` and `?`. The `*` matches any sequence of characters (including none), while `?` matches exactly one character.
