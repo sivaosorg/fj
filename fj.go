@@ -703,6 +703,40 @@ func (ctx Context) StringColored() string {
 	return string(unify4g.Color(s, defaultStyle))
 }
 
+// WithStringColored applies a customizable colored styling to the string representation of the Context value.
+//
+// This function enhances the default coloring functionality by allowing the caller to specify a custom
+// style for highlighting the Context value. If no custom style is provided, the default styling rules
+// (`defaultStyle`) are used.
+//
+// Parameters:
+//   - style (*unify4g.Style): A pointer to a Style structure that defines custom styling rules
+//     for JSON elements. If `style` is nil, the `defaultStyle` is applied.
+//
+// Details:
+//   - Retrieves the plain string representation of the Context value using `ctx.String()`.
+//   - Checks if the string is empty using the `isEmpty` utility function. If empty, it returns
+//     an empty string immediately.
+//   - If a custom style is provided, it applies the given style to the string representation
+//     using the `unify4g.Color` function. Otherwise, it applies the default style.
+//
+// Returns:
+//   - string: A styled string representation of the Context value based on the provided or default style.
+//
+// Example Usage:
+//
+//	customStyle := &unify4g.Style{
+//	    Key:      [2]string{"\033[1;36m", "\033[0m"},
+//	    String:   [2]string{"\033[1;33m", "\033[0m"},
+//	    // Additional styling rules...
+//	}
+//
+//	ctx := Context{kind: True}
+//	fmt.Println(ctx.WithStringColored(customStyle)) // Output: "\033[1;35mtrue\033[0m" (custom colored)
+//
+// Notes:
+//   - The function uses the `unify4g.Color` utility to apply the color rules defined in the style.
+//   - Requires the `isEmpty` utility function to check for empty strings.
 func (ctx Context) WithStringColored(style *unify4g.Style) string {
 	s := []byte(ctx.String())
 	if isEmpty(string(s)) {
