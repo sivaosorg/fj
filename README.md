@@ -86,6 +86,32 @@ Given the `JSON` string
     {
       "required": ["accession"]
     }
+  ],
+  "animals": [
+    {
+      "name": "Meowsy",
+      "species": "cat",
+      "foods": {
+        "likes": ["tuna", "catnip"],
+        "dislikes": ["ham", "zucchini"]
+      }
+    },
+    {
+      "name": "Barky",
+      "species": "dog",
+      "foods": {
+        "likes": ["bones", "carrots"],
+        "dislikes": ["tuna"]
+      }
+    },
+    {
+      "name": "Purrpaws",
+      "species": "cat",
+      "foods": {
+        "likes": ["mice"],
+        "dislikes": ["cookies"]
+      }
+    }
   ]
 }
 ```
@@ -100,9 +126,9 @@ A `fj` path is designed to be represented as a sequence of elements divided by a
 
 In addition to the `.` symbol, several other characters hold special significance, such as `|`, `#`, `@`, `\`, `*`, `!`, and `?`.
 
-## Basic
+## Access values
 
-In most situations, you'll simply need to access values using the object name or array index.
+- **Basic**: in most situations, you'll simply need to access values using the object name or array index.
 
 ```shell
 > id # "http://subs/base-sample-schema.json"
@@ -113,4 +139,10 @@ In most situations, you'll simply need to access values using the object name or
 > required.1 # "taxonId"
 > oneOf.0.required # ["alias", "team"]
 > oneOf.0.required.1 # "team"
+```
+
+- **Wildcards**: A key can include special wildcard symbols like `*` and `?`. The `*` matches any sequence of characters (including none), while `?` matches exactly one character.
+
+```shell
+> anim*ls.1.name # "Barky"
 ```
