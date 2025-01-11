@@ -163,3 +163,8 @@ The `#` symbol enables navigation within JSON arrays. To retrieve the length of 
 > animals.# # 3 (length of an array)
 > animals.#.name # ["Meowsy","Barky","Purrpaws"]
 ```
+
+### Queries
+
+You can also search an array for the first match by using `#(...)`, or retrieve all matches with `#(...)#`.
+Queries support comparison operators such as `==`, `!=`, `<`, `<=`, `>`, `>=`, along with simple pattern matching operators `%` (like) and `!%` (not like).
