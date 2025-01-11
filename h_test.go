@@ -9,7 +9,7 @@ func TestCalcSubstringIndex(t *testing.T) {
 	json := `{"key": "value"}`
 	value := Context{unprocessed: `"value"`}
 	c := &parser{json: json, value: value}
-	calcSubstring(json, c)
+	computeIndex(json, c)
 	t.Log(c.value.index)
 }
 
@@ -18,7 +18,7 @@ func TestToBytes(t *testing.T) {
 	// Test Case 1: Verify conversion of a regular string
 	input := "hello, world"
 	expected := []byte("hello, world")
-	result := fromStr2Bytes(input)
+	result := unsafeStringToBytes(input)
 
 	// Check if the result matches the expected byte slice
 	if string(result) != string(expected) {
@@ -28,7 +28,7 @@ func TestToBytes(t *testing.T) {
 	// Test Case 2: Verify zero-length string
 	input = ""
 	expected = []byte{}
-	result = fromStr2Bytes(input)
+	result = unsafeStringToBytes(input)
 
 	// Check if the result matches the expected empty byte slice
 	if string(result) != string(expected) {
@@ -50,7 +50,7 @@ func TestBytesToStr(t *testing.T) {
 	// Test Case 1: Verify conversion of a regular byte slice
 	input := []byte{'h', 'e', 'l', 'l', 'o'}
 	expected := "hello"
-	result := fromBytes2Str(input)
+	result := unsafeBytesToString(input)
 
 	// Check if the result matches the expected string
 	if result != expected {
@@ -60,7 +60,7 @@ func TestBytesToStr(t *testing.T) {
 	// Test Case 2: Verify conversion of an empty byte slice
 	input = []byte{}
 	expected = ""
-	result = fromBytes2Str(input)
+	result = unsafeBytesToString(input)
 
 	// Check if the result matches the expected empty string
 	if result != expected {
@@ -69,7 +69,7 @@ func TestBytesToStr(t *testing.T) {
 
 	// Test Case 3: Check for memory aliasing
 	input = []byte{'g', 'o', 'l', 'a', 'n', 'g'}
-	result = fromBytes2Str(input)
+	result = unsafeBytesToString(input)
 
 	// Mutate the original byte slice
 	input[0] = 'G'
@@ -83,7 +83,7 @@ func TestBytesToStr(t *testing.T) {
 	// Test Case 4: Check behavior with special characters
 	input = []byte{'$', '%', '^', '&', '*'}
 	expected = "$%^&*"
-	result = fromBytes2Str(input)
+	result = unsafeBytesToString(input)
 
 	// Check if the result matches the expected string with special characters
 	if result != expected {

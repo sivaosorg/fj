@@ -115,9 +115,9 @@ func transformPretty(json, arg string) string {
 			}
 			return true
 		})
-		return fromBytes2Str(unify4g.PrettyOptions(fromStr2Bytes(json), &opts))
+		return unsafeBytesToString(unify4g.PrettyOptions(unsafeStringToBytes(json), &opts))
 	}
-	return fromBytes2Str(unify4g.Pretty(fromStr2Bytes(json)))
+	return unsafeBytesToString(unify4g.Pretty(unsafeStringToBytes(json)))
 }
 
 // transformMinify removes all whitespace characters from the input JSON string,
@@ -160,7 +160,7 @@ func transformPretty(json, arg string) string {
 //     whitespace from the JSON data.
 //   - This function is often used to reduce the size of JSON data for storage or transmission.
 func transformMinify(json, arg string) string {
-	return fromBytes2Str(unify4g.Ugly(fromStr2Bytes(json)))
+	return unsafeBytesToString(unify4g.Ugly(unsafeStringToBytes(json)))
 }
 
 // transformReverse reverses the order of elements in an array or the order of key-value
@@ -218,7 +218,7 @@ func transformReverse(json, arg string) string {
 			out = append(out, values[i].unprocessed...)
 		}
 		out = append(out, ']')
-		return fromBytes2Str(out)
+		return unsafeBytesToString(out)
 	}
 	if ctx.IsObject() {
 		var keyValues []Context
@@ -237,7 +237,7 @@ func transformReverse(json, arg string) string {
 			out = append(out, keyValues[i+1].unprocessed...)
 		}
 		out = append(out, '}')
-		return fromBytes2Str(out)
+		return unsafeBytesToString(out)
 	}
 	return json
 }
@@ -338,7 +338,7 @@ func transformFlatten(json, arg string) string {
 		return true
 	})
 	out = append(out, ']')
-	return fromBytes2Str(out)
+	return unsafeBytesToString(out)
 }
 
 // transformJoin merges multiple JSON objects into a single object.
@@ -441,7 +441,7 @@ func transformJoin(json, arg string) string {
 		}
 	}
 	target = append(target, '}')
-	return fromBytes2Str(target)
+	return unsafeBytesToString(target)
 }
 
 // transformJSONValidity ensures that the input JSON is valid before processing it further.

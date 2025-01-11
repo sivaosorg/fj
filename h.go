@@ -67,6 +67,72 @@ func getNumeric(json string) (raw string, num float64) {
 	return
 }
 
+// getBytes efficiently processes a JSON byte slice and a path string to produce a `Context`.
+// This function minimizes memory allocations and copies, leveraging unsafe operations
+// to handle large JSON strings and slice conversions.
+//
+// Parameters:
+//   - `json`: A byte slice containing the JSON data to process.
+//   - `path`: A string representing the path to extract data from the JSON.
+//
+// Returns:
+//   - A `Context` struct containing processed and unprocessed strings representing
+//     the result of applying the path to the JSON data.
+//
+// Notes:
+//   - The function uses unsafe pointer operations to avoid unnecessary allocations and copies.
+//   - It extracts string and byte slice headers and ensures memory safety by copying headers
+//     to strings when needed.
+//   - The function checks whether the substring (`strings`) is part of the raw string (`unprocessed`)
+//     and handles memory overlap efficiently.
+//
+// Example:
+//
+//	jsonBytes := []byte(`{"key": "value", "nested": {"innerKey": "innerValue"}}`)
+//	path := "nested.innerKey"
+//	context := getBytes(jsonBytes, path)
+//	fmt.Println("Unprocessed:", context.unprocessed) // Output: `{"key": "value", "nested": {"innerKey": "innerValue"}}`
+//	fmt.Println("Strings:", context.strings)         // Output: `{"innerKey": "innerValue"}`
+func getBytes(json []byte, path string) Context {
+	var result Context
+	if json != nil {
+		// unsafe cast json bytes to a string and process it using the Get function.
+		result = Get(*(*string)(unsafe.Pointer(&json)), path)
+		// extract the string headers for unprocessed and strings.
+		rawSafe := *(*stringHeader)(unsafe.Pointer(&result.unprocessed))
+		stringSafe := *(*stringHeader)(unsafe.Pointer(&result.strings))
+		// create byte slice headers for the unprocessed and strings.
+		rawHeader := sliceHeader{data: rawSafe.data, length: rawSafe.length, capacity: rawSafe.length}
+		sliceHeader := sliceHeader{data: stringSafe.data, length: stringSafe.length, capacity: rawSafe.length}
+		// check for nil data and safely copy headers to strings if necessary.
+		if sliceHeader.data == nil {
+			if rawHeader.data == nil {
+				result.unprocessed = ""
+			} else {
+				// unprocessed has data, safely copy the slice header to a string
+				result.unprocessed = string(*(*[]byte)(unsafe.Pointer(&rawHeader)))
+			}
+			result.strings = ""
+		} else if rawHeader.data == nil {
+			result.unprocessed = ""
+			result.strings = string(*(*[]byte)(unsafe.Pointer(&sliceHeader)))
+		} else if uintptr(sliceHeader.data) >= uintptr(rawHeader.data) &&
+			uintptr(sliceHeader.data)+uintptr(sliceHeader.length) <=
+				uintptr(rawHeader.data)+uintptr(rawHeader.length) {
+			// strings is a substring of unprocessed.
+			start := uintptr(sliceHeader.data) - uintptr(rawHeader.data)
+			// safely copy the raw slice header
+			result.unprocessed = string(*(*[]byte)(unsafe.Pointer(&rawHeader)))
+			result.strings = result.unprocessed[start : start+uintptr(sliceHeader.length)]
+		} else {
+			// safely copy both headers to strings.
+			result.unprocessed = string(*(*[]byte)(unsafe.Pointer(&rawHeader)))
+			result.strings = string(*(*[]byte)(unsafe.Pointer(&sliceHeader)))
+		}
+	}
+	return result
+}
+
 // isSafeKeyChar checks if a given byte is a valid character for a safe path key.
 //
 // This function is used to determine if a character can be part of a safe key in a path,
@@ -205,73 +271,7 @@ func reverseSquash(json string) string {
 	return json
 }
 
-// getBytes efficiently processes a JSON byte slice and a path string to produce a `Context`.
-// This function minimizes memory allocations and copies, leveraging unsafe operations
-// to handle large JSON strings and slice conversions.
-//
-// Parameters:
-//   - `json`: A byte slice containing the JSON data to process.
-//   - `path`: A string representing the path to extract data from the JSON.
-//
-// Returns:
-//   - A `Context` struct containing processed and unprocessed strings representing
-//     the result of applying the path to the JSON data.
-//
-// Notes:
-//   - The function uses unsafe pointer operations to avoid unnecessary allocations and copies.
-//   - It extracts string and byte slice headers and ensures memory safety by copying headers
-//     to strings when needed.
-//   - The function checks whether the substring (`strings`) is part of the raw string (`unprocessed`)
-//     and handles memory overlap efficiently.
-//
-// Example:
-//
-//	jsonBytes := []byte(`{"key": "value", "nested": {"innerKey": "innerValue"}}`)
-//	path := "nested.innerKey"
-//	context := getBytes(jsonBytes, path)
-//	fmt.Println("Unprocessed:", context.unprocessed) // Output: `{"key": "value", "nested": {"innerKey": "innerValue"}}`
-//	fmt.Println("Strings:", context.strings)         // Output: `{"innerKey": "innerValue"}`
-func getBytes(json []byte, path string) Context {
-	var result Context
-	if json != nil {
-		// unsafe cast json bytes to a string and process it using the Get function.
-		result = Get(*(*string)(unsafe.Pointer(&json)), path)
-		// extract the string headers for unprocessed and strings.
-		rawSafe := *(*stringHeader)(unsafe.Pointer(&result.unprocessed))
-		stringSafe := *(*stringHeader)(unsafe.Pointer(&result.strings))
-		// create byte slice headers for the unprocessed and strings.
-		rawHeader := sliceHeader{data: rawSafe.data, length: rawSafe.length, capacity: rawSafe.length}
-		sliceHeader := sliceHeader{data: stringSafe.data, length: stringSafe.length, capacity: rawSafe.length}
-		// check for nil data and safely copy headers to strings if necessary.
-		if sliceHeader.data == nil {
-			if rawHeader.data == nil {
-				result.unprocessed = ""
-			} else {
-				// unprocessed has data, safely copy the slice header to a string
-				result.unprocessed = string(*(*[]byte)(unsafe.Pointer(&rawHeader)))
-			}
-			result.strings = ""
-		} else if rawHeader.data == nil {
-			result.unprocessed = ""
-			result.strings = string(*(*[]byte)(unsafe.Pointer(&sliceHeader)))
-		} else if uintptr(sliceHeader.data) >= uintptr(rawHeader.data) &&
-			uintptr(sliceHeader.data)+uintptr(sliceHeader.length) <=
-				uintptr(rawHeader.data)+uintptr(rawHeader.length) {
-			// strings is a substring of unprocessed.
-			start := uintptr(sliceHeader.data) - uintptr(rawHeader.data)
-			// safely copy the raw slice header
-			result.unprocessed = string(*(*[]byte)(unsafe.Pointer(&rawHeader)))
-			result.strings = result.unprocessed[start : start+uintptr(sliceHeader.length)]
-		} else {
-			// safely copy both headers to strings.
-			result.unprocessed = string(*(*[]byte)(unsafe.Pointer(&rawHeader)))
-			result.strings = string(*(*[]byte)(unsafe.Pointer(&sliceHeader)))
-		}
-	}
-	return result
-}
-
-// calcSubstring calculates and assigns the starting index of the `unprocessed` field in the `value`
+// computeIndex calculates and assigns the starting index of the `unprocessed` field in the `value`
 // field of the `parser` struct relative to the `json` string.
 //
 // Parameters:
@@ -294,9 +294,9 @@ func getBytes(json []byte, path string) Context {
 //	json := `{"key": "value"}`
 //	value := Context{unprocessed: `"value"`}
 //	c := &parser{json: json, value: value}
-//	calcSubstring(json, c)
+//	computeIndex(json, c)
 //	fmt.Println(c.value.index) // Outputs the starting position of `"value"` in the JSON string.
-func calcSubstring(json string, c *parser) {
+func computeIndex(json string, c *parser) {
 	if len(c.value.unprocessed) > 0 && !c.calc {
 		jsonHeader := *(*stringHeader)(unsafe.Pointer(&json))
 		unprocessedHeader := *(*stringHeader)(unsafe.Pointer(&(c.value.unprocessed)))
@@ -307,7 +307,7 @@ func calcSubstring(json string, c *parser) {
 	}
 }
 
-// fromStr2Bytes converts a string into a byte slice without allocating new memory for the data.
+// unsafeStringToBytes converts a string into a byte slice without allocating new memory for the data.
 // This function uses unsafe operations to directly reinterpret the string's underlying data
 // structure as a byte slice. This allows efficient access to the string's content as a mutable
 // byte slice, but it also comes with risks.
@@ -334,9 +334,9 @@ func calcSubstring(json string, c *parser) {
 // Example Usage:
 //
 //	s := "immutable string"
-//	b := fromStr2Bytes(s) // Efficiently converts the string to []byte
+//	b := unsafeStringToBytes(s) // Efficiently converts the string to []byte
 //	// WARNING: Modifying 'b' here can lead to undefined behavior.
-func fromStr2Bytes(s string) []byte {
+func unsafeStringToBytes(s string) []byte {
 	return *(*[]byte)(unsafe.Pointer(&sliceHeader{
 		data:     (*stringHeader)(unsafe.Pointer(&s)).data,
 		length:   len(s),
@@ -344,7 +344,7 @@ func fromStr2Bytes(s string) []byte {
 	}))
 }
 
-// fromBytes2Str converts a byte slice into a string without allocating new memory for the data.
+// unsafeBytesToString converts a byte slice into a string without allocating new memory for the data.
 // This function uses unsafe operations to directly reinterpret the byte slice's underlying data
 // structure as a string. This allows efficient conversion without copying the data.
 //
@@ -371,10 +371,10 @@ func fromStr2Bytes(s string) []byte {
 // Example Usage:
 //
 //	b := []byte{'h', 'e', 'l', 'l', 'o'}
-//	s := fromBytes2Str(b) // Efficiently converts the byte slice to a string
+//	s := unsafeBytesToString(b) // Efficiently converts the byte slice to a string
 //	fmt.Println(s) // Output: "hello"
 //	// WARNING: Modifying 'b' here will also modify 's', leading to unexpected behavior.
-func fromBytes2Str(b []byte) string {
+func unsafeBytesToString(b []byte) string {
 	return *(*string)(unsafe.Pointer(&b))
 }
 
@@ -1576,7 +1576,7 @@ func ensureSafeInt64(f float64) (n int64, ok bool) {
 	return int64(f), true
 }
 
-// parseStaticValue parses a string path to find a static value, such as a boolean, null, or number.
+// parseStaticSegment parses a string path to find a static value, such as a boolean, null, or number.
 // The function expects that the input path starts with a '!', indicating a static value. It identifies the static
 // value by looking for valid characters and structures that represent literal values in a path. If a valid static value
 // is found, it returns the remaining path, the static value, and a success flag. Otherwise, it returns false.
@@ -1596,13 +1596,13 @@ func ensureSafeInt64(f float64) (n int64, ok bool) {
 // Example Usage:
 //
 //	path := "!true.some.other.path"
-//	pathOut, result, ok := parseStaticValue(path)
+//	pathOut, result, ok := parseStaticSegment(path)
 //	// pathOut: ".some.other.path" (remaining path)
 //	// result: "true" (the static value found)
 //	// ok: true (successful identification of static value)
 //
 //	path = "!123.abc"
-//	pathOut, result, ok = parseStaticValue(path)
+//	pathOut, result, ok = parseStaticSegment(path)
 //	// pathOut: ".abc" (remaining path)
 //	// result: "123" (the static value found)
 //	// ok: true (successful identification of static value)
@@ -1625,7 +1625,7 @@ func ensureSafeInt64(f float64) (n int64, ok bool) {
 //   - The function assumes that the input path is well-formed and follows the expected format (starting with '!').
 //
 //   - The value can be a boolean, null, NaN, Inf, or a number in the path.
-func parseStaticValue(path string) (pathStatic, result string, ok bool) {
+func parseStaticSegment(path string) (pathStatic, result string, ok bool) {
 	name := path[1:]
 	if len(name) > 0 {
 		switch name[0] {
@@ -1653,152 +1653,6 @@ func parseStaticValue(path string) (pathStatic, result string, ok bool) {
 		return pathStatic, name, true
 	}
 	return pathStatic, result, false
-}
-
-// trim removes leading and trailing whitespace characters from a string.
-// The function iteratively checks and removes spaces (or any character less than or equal to a space)
-// from both the left (beginning) and right (end) of the string.
-//
-// Parameters:
-//   - s: A string that may contain leading and trailing whitespace characters that need to be removed.
-//
-// Returns:
-//   - A new string with leading and trailing whitespace removed. The function does not modify the original string,
-//     as strings in Go are immutable.
-//
-// Example Usage:
-//
-//	str := "  hello world  "
-//	trimmed := trim(str)
-//	// trimmed: "hello world" (leading and trailing spaces removed)
-//
-//	str = "\n\n   trim me   \t\n"
-//	trimmed = trim(str)
-//	// trimmed: "trim me" (leading and trailing spaces and newline characters removed)
-//
-// Details:
-//
-//   - The function works by iteratively removing any characters less than or equal to a space (ASCII 32) from the
-//     left side of the string until no such characters remain. It then performs the same operation on the right side of
-//     the string until no whitespace characters are left.
-//
-//   - The function uses a `goto` mechanism to handle the removal in a loop, which ensures all leading and trailing
-//     spaces (or any whitespace characters) are removed without additional checks for length or condition evaluation
-//     in every iteration.
-//
-//   - The trimmed result string will not contain leading or trailing whitespace characters after the function completes.
-//
-//   - The function returns an unchanged string if no whitespace is present.
-func trim(s string) string {
-	if isEmpty(s) {
-		return s
-	}
-left:
-	if len(s) > 0 && s[0] <= ' ' {
-		s = s[1:]
-		goto left
-	}
-right:
-	if len(s) > 0 && s[len(s)-1] <= ' ' {
-		s = s[:len(s)-1]
-		goto right
-	}
-	return s
-}
-
-// removeOuterBraces removes the surrounding '[]' or '{}' characters from a JSON string.
-// This function is useful when you want to extract the content inside a JSON array or object,
-// effectively unwrapping the outermost brackets or braces.
-//
-// Parameters:
-//   - json: A string representing a JSON object or array. The string may include square brackets ('[]') or
-//     curly braces ('{}') at the beginning and end, which will be removed if they exist.
-//
-// Returns:
-//   - A new string with the outermost '[]' or '{}' characters removed. If the string does not start
-//     and end with matching brackets or braces, the string remains unchanged.
-//
-// Example Usage:
-//
-//	json := "[1, 2, 3]"
-//	unwrapped := removeOuterBraces(json)
-//	// unwrapped: "1, 2, 3" (the array removed)
-//
-//	json = "{ \"name\": \"John\" }"
-//	unwrapped = removeOuterBraces(json)
-//	// unwrapped: " \"name\": \"John\" " (the object removed)
-//
-//	str := "hello world"
-//	unwrapped = removeOuterBraces(str)
-//	// unwrapped: "hello world" (no change since no surrounding brackets or braces)
-//
-// Details:
-//
-//   - The function first trims any leading or trailing whitespace from the input string using the `trim` function.
-//
-//   - It then checks if the string has at least two characters and if the first character is either '[' or '{'.
-//
-//   - If the first character is an opening bracket or brace, and the last character matches its pair (']' or '}'),
-//     the function removes both the first and last characters.
-//
-//   - If the string does not start and end with matching brackets or braces, the original string is returned unchanged.
-//
-//   - The function handles cases where the string may contain additional whitespace at the beginning or end by trimming it first.
-func removeOuterBraces(json string) string {
-	json = trim(json)
-	if len(json) >= 2 && (json[0] == '[' || json[0] == '{') {
-		json = json[1 : len(json)-1]
-	}
-	return json
-}
-
-// stripNonWhitespace removes all non-whitespace characters from the input string, leaving only whitespace characters.
-// The function iterates over each character in the input string and appends only whitespace characters (' ', '\t', '\n', '\r')
-// to a new string. All non-whitespace characters are ignored and not included in the result.
-//
-// Parameters:
-//   - s: A string that may contain a mixture of whitespace and non-whitespace characters.
-//
-// Returns:
-//   - A new string consisting only of whitespace characters from the original string. If there are no whitespace characters
-//     in the input string, it returns an empty string.
-//
-// Example Usage:
-//
-//	str := "  \t\n   abc  "
-//	result := stripNonWhitespace(str)
-//	// result: "     " (all non-whitespace characters are removed)
-//
-//	str = "hello"
-//	result = stripNonWhitespace(str)
-//	// result: "" (no whitespace characters, returns an empty string)
-//
-// Details:
-//
-//   - The function iterates through each character in the input string `s` and skips any non-whitespace character.
-//
-//   - It appends each whitespace character to a new byte slice `s2`, which is later converted to a string and returned.
-//
-//   - If the input string contains no whitespace characters, the function returns an empty string.
-//
-//   - This function may not be very efficient for long strings, as it performs an inner loop on each non-whitespace character.
-func stripNonWhitespace(s string) string {
-	for i := 0; i < len(s); i++ {
-		switch s[i] {
-		case ' ', '\t', '\n', '\r':
-			continue
-		default:
-			var s2 []byte
-			for i := 0; i < len(s); i++ {
-				switch s[i] {
-				case ' ', '\t', '\n', '\r':
-					s2 = append(s2, s[i])
-				}
-			}
-			return string(s2)
-		}
-	}
-	return s
 }
 
 // unescapeJSONEncoded extracts a JSON-encoded string and returns both the full JSON string (with quotes) and the unescaped string content.
@@ -2476,7 +2330,7 @@ func parseJSONAny(json string, i int, hit bool) (int, Context, bool) {
 			}
 			var tmp parser
 			tmp.value = ctx
-			calcSubstring(json, &tmp)
+			computeIndex(json, &tmp)
 			return i, tmp.value, true
 		}
 		if json[i] <= ' ' {
@@ -3076,7 +2930,7 @@ func analyzeArray(c *parser, i int, path string) (int, bool) {
 		}
 		var tmp parser
 		tmp.value = eVal
-		calcSubstring(c.json, &tmp)
+		computeIndex(c.json, &tmp)
 		parentIndex := tmp.value.index
 		var res Context
 		if eVal.kind == JSON {
@@ -4013,6 +3867,52 @@ func escapeUnsafeChars(component string) string {
 	return component
 }
 
+// removeOuterBraces removes the surrounding '[]' or '{}' characters from a JSON string.
+// This function is useful when you want to extract the content inside a JSON array or object,
+// effectively unwrapping the outermost brackets or braces.
+//
+// Parameters:
+//   - json: A string representing a JSON object or array. The string may include square brackets ('[]') or
+//     curly braces ('{}') at the beginning and end, which will be removed if they exist.
+//
+// Returns:
+//   - A new string with the outermost '[]' or '{}' characters removed. If the string does not start
+//     and end with matching brackets or braces, the string remains unchanged.
+//
+// Example Usage:
+//
+//	json := "[1, 2, 3]"
+//	unwrapped := removeOuterBraces(json)
+//	// unwrapped: "1, 2, 3" (the array removed)
+//
+//	json = "{ \"name\": \"John\" }"
+//	unwrapped = removeOuterBraces(json)
+//	// unwrapped: " \"name\": \"John\" " (the object removed)
+//
+//	str := "hello world"
+//	unwrapped = removeOuterBraces(str)
+//	// unwrapped: "hello world" (no change since no surrounding brackets or braces)
+//
+// Details:
+//
+//   - The function first trims any leading or trailing whitespace from the input string using the `trim` function.
+//
+//   - It then checks if the string has at least two characters and if the first character is either '[' or '{'.
+//
+//   - If the first character is an opening bracket or brace, and the last character matches its pair (']' or '}'),
+//     the function removes both the first and last characters.
+//
+//   - If the string does not start and end with matching brackets or braces, the original string is returned unchanged.
+//
+//   - The function handles cases where the string may contain additional whitespace at the beginning or end by trimming it first.
+func removeOuterBraces(json string) string {
+	json = trim(json)
+	if len(json) >= 2 && (json[0] == '[' || json[0] == '{') {
+		json = json[1 : len(json)-1]
+	}
+	return json
+}
+
 // removeDoubleQuotes removes all double quotes (`"`) from the input string.
 //
 // This function is useful when sanitizing input or processing strings where double quotes
@@ -4040,53 +3940,53 @@ func removeDoubleQuotes(str string) string {
 	return strings.ReplaceAll(str, `"`, "")
 }
 
-// isEmpty checks if the provided string is empty or consists solely of whitespace characters.
-//
-// The function trims leading and trailing whitespace from the input string `s` using
-// strings.TrimSpace. It then evaluates the length of the trimmed string. If the length is
-// zero, it indicates that the original string was either empty or contained only whitespace,
-// and the function returns true. Otherwise, it returns false.
+// stripNonWhitespace removes all non-whitespace characters from the input string, leaving only whitespace characters.
+// The function iterates over each character in the input string and appends only whitespace characters (' ', '\t', '\n', '\r')
+// to a new string. All non-whitespace characters are ignored and not included in the result.
 //
 // Parameters:
-//   - `s`: A string that needs to be checked for emptiness.
+//   - s: A string that may contain a mixture of whitespace and non-whitespace characters.
 //
 // Returns:
+//   - A new string consisting only of whitespace characters from the original string. If there are no whitespace characters
+//     in the input string, it returns an empty string.
 //
-//	A boolean value:
-//	 - true if the string is empty or contains only whitespace characters;
-//	 - false if the string contains any non-whitespace characters.
+// Example Usage:
 //
-// Example:
+//	str := "  \t\n   abc  "
+//	result := stripNonWhitespace(str)
+//	// result: "     " (all non-whitespace characters are removed)
 //
-//	result := isEmpty("   ") // result will be true
-//	result = isEmpty("Hello") // result will be false
-func isEmpty(s string) bool {
-	trimmed := strings.TrimSpace(s)
-	return len(trimmed) == 0
-}
-
-// isNotEmpty checks if the provided string is not empty or does not consist solely of whitespace characters.
+//	str = "hello"
+//	result = stripNonWhitespace(str)
+//	// result: "" (no whitespace characters, returns an empty string)
 //
-// This function leverages the IsEmpty function to determine whether the input string `s`
-// is empty or contains only whitespace. It returns the negation of the result from IsEmpty.
-// If IsEmpty returns true (indicating the string is empty or whitespace), isNotEmpty will return false,
-// and vice versa.
+// Details:
 //
-// Parameters:
-//   - `s`: A string that needs to be checked for non-emptiness.
+//   - The function iterates through each character in the input string `s` and skips any non-whitespace character.
 //
-// Returns:
+//   - It appends each whitespace character to a new byte slice `s2`, which is later converted to a string and returned.
 //
-//		 A boolean value:
-//	  - true if the string contains at least one non-whitespace character;
-//	  - false if the string is empty or contains only whitespace characters.
+//   - If the input string contains no whitespace characters, the function returns an empty string.
 //
-// Example:
-//
-//	result := isNotEmpty("Hello") // result will be true
-//	result = isNotEmpty("   ") // result will be false
-func isNotEmpty(s string) bool {
-	return !isEmpty(s)
+//   - This function may not be very efficient for long strings, as it performs an inner loop on each non-whitespace character.
+func stripNonWhitespace(s string) string {
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case ' ', '\t', '\n', '\r':
+			continue
+		default:
+			var s2 []byte
+			for i := 0; i < len(s); i++ {
+				switch s[i] {
+				case ' ', '\t', '\n', '\r':
+					s2 = append(s2, s[i])
+				}
+			}
+			return string(s2)
+		}
+	}
+	return s
 }
 
 // isPrimitive checks whether the given value is a primitive type in Go.
@@ -4132,63 +4032,29 @@ func isPrimitive(value interface{}) bool {
 	}
 }
 
-// trimWhitespace removes extra whitespace from the input string,
-// replacing any sequence of whitespace characters with a single space.
+// isEmpty checks if the provided string is empty or consists solely of whitespace characters.
 //
-// This function first checks if the input string `s` is empty or consists solely of whitespace
-// using the IsEmpty function. If so, it returns an empty string. If the string contains
-// non-whitespace characters, it utilizes a precompiled regular expression (regexpDupSpaces)
-// to identify and replace all sequences of whitespace characters (including spaces, tabs, and
-// newlines) with a single space. This helps to normalize whitespace in the string.
+// The function trims leading and trailing whitespace from the input string `s` using
+// strings.TrimSpace. It then evaluates the length of the trimmed string. If the length is
+// zero, it indicates that the original string was either empty or contained only whitespace,
+// and the function returns true. Otherwise, it returns false.
 //
 // Parameters:
-// - `s`: The input string from which duplicate whitespace needs to be removed.
+//   - `s`: A string that needs to be checked for emptiness.
 //
 // Returns:
-//   - A string with all sequences of whitespace characters replaced by a single space.
-//     If the input string is empty or only contains whitespace, an empty string is returned.
+//
+//	A boolean value:
+//	 - true if the string is empty or contains only whitespace characters;
+//	 - false if the string contains any non-whitespace characters.
 //
 // Example:
 //
-//	result := trimWhitespace("This   is  an example.\n\nThis is another line.") // result will be "This is an example. This is another line."
-func trimWhitespace(s string) string {
-	if isEmpty(s) {
-		return ""
-	}
-	// Use a regular expression to replace all sequences of whitespace characters with a single space.
-	s = regexpDupSpaces.ReplaceAllString(s, " ")
-	return s
-}
-
-// isWhitespace checks if the provided string contains only whitespace characters.
-//
-// This function iterates through each character of the input string and checks if each character
-// is a whitespace character (spaces, tabs, newlines, etc.) using the `unicode.IsSpace` function.
-// If it encounters any character that is not a whitespace, it returns `false`. If all characters
-// are whitespace, it returns `true`.
-//
-// Parameters:
-//   - `str`: The input string to be checked for whitespace.
-//
-// Returns:
-//   - `true` if the string contains only whitespace characters;
-//     `false` if the string contains any non-whitespace characters.
-//
-// Example:
-//
-//	result1 := isWhitespace("    ") // result1 will be true because the string contains only spaces.
-//	result2 := isWhitespace("Hello") // result2 will be false because the string contains non-whitespace characters.
-//
-// Notes:
-//   - This function is useful for determining if a string is blank in terms of visible content,
-//     which can be important in user input validation or string processing tasks.
-func isWhitespace(str string) bool {
-	for _, c := range str {
-		if !unicode.IsSpace(c) {
-			return false
-		}
-	}
-	return true
+//	result := isEmpty("   ") // result will be true
+//	result = isEmpty("Hello") // result will be false
+func isEmpty(s string) bool {
+	trimmed := strings.TrimSpace(s)
+	return len(trimmed) == 0
 }
 
 // isBlank checks if a string is blank (empty or contains only whitespace).
@@ -4228,4 +4094,138 @@ func isBlank(s string) bool {
 		return true
 	}
 	return false
+}
+
+// isNotEmpty checks if the provided string is not empty or does not consist solely of whitespace characters.
+//
+// This function leverages the IsEmpty function to determine whether the input string `s`
+// is empty or contains only whitespace. It returns the negation of the result from IsEmpty.
+// If IsEmpty returns true (indicating the string is empty or whitespace), isNotEmpty will return false,
+// and vice versa.
+//
+// Parameters:
+//   - `s`: A string that needs to be checked for non-emptiness.
+//
+// Returns:
+//
+//		 A boolean value:
+//	  - true if the string contains at least one non-whitespace character;
+//	  - false if the string is empty or contains only whitespace characters.
+//
+// Example:
+//
+//	result := isNotEmpty("Hello") // result will be true
+//	result = isNotEmpty("   ") // result will be false
+func isNotEmpty(s string) bool {
+	return !isEmpty(s)
+}
+
+// isWhitespace checks if the provided string contains only whitespace characters.
+//
+// This function iterates through each character of the input string and checks if each character
+// is a whitespace character (spaces, tabs, newlines, etc.) using the `unicode.IsSpace` function.
+// If it encounters any character that is not a whitespace, it returns `false`. If all characters
+// are whitespace, it returns `true`.
+//
+// Parameters:
+//   - `str`: The input string to be checked for whitespace.
+//
+// Returns:
+//   - `true` if the string contains only whitespace characters;
+//     `false` if the string contains any non-whitespace characters.
+//
+// Example:
+//
+//	result1 := isWhitespace("    ") // result1 will be true because the string contains only spaces.
+//	result2 := isWhitespace("Hello") // result2 will be false because the string contains non-whitespace characters.
+//
+// Notes:
+//   - This function is useful for determining if a string is blank in terms of visible content,
+//     which can be important in user input validation or string processing tasks.
+func isWhitespace(str string) bool {
+	for _, c := range str {
+		if !unicode.IsSpace(c) {
+			return false
+		}
+	}
+	return true
+}
+
+// trim removes leading and trailing whitespace characters from a string.
+// The function iteratively checks and removes spaces (or any character less than or equal to a space)
+// from both the left (beginning) and right (end) of the string.
+//
+// Parameters:
+//   - s: A string that may contain leading and trailing whitespace characters that need to be removed.
+//
+// Returns:
+//   - A new string with leading and trailing whitespace removed. The function does not modify the original string,
+//     as strings in Go are immutable.
+//
+// Example Usage:
+//
+//	str := "  hello world  "
+//	trimmed := trim(str)
+//	// trimmed: "hello world" (leading and trailing spaces removed)
+//
+//	str = "\n\n   trim me   \t\n"
+//	trimmed = trim(str)
+//	// trimmed: "trim me" (leading and trailing spaces and newline characters removed)
+//
+// Details:
+//
+//   - The function works by iteratively removing any characters less than or equal to a space (ASCII 32) from the
+//     left side of the string until no such characters remain. It then performs the same operation on the right side of
+//     the string until no whitespace characters are left.
+//
+//   - The function uses a `goto` mechanism to handle the removal in a loop, which ensures all leading and trailing
+//     spaces (or any whitespace characters) are removed without additional checks for length or condition evaluation
+//     in every iteration.
+//
+//   - The trimmed result string will not contain leading or trailing whitespace characters after the function completes.
+//
+//   - The function returns an unchanged string if no whitespace is present.
+func trim(s string) string {
+	if isEmpty(s) {
+		return s
+	}
+left:
+	if len(s) > 0 && s[0] <= ' ' {
+		s = s[1:]
+		goto left
+	}
+right:
+	if len(s) > 0 && s[len(s)-1] <= ' ' {
+		s = s[:len(s)-1]
+		goto right
+	}
+	return s
+}
+
+// trimWhitespace removes extra whitespace from the input string,
+// replacing any sequence of whitespace characters with a single space.
+//
+// This function first checks if the input string `s` is empty or consists solely of whitespace
+// using the IsEmpty function. If so, it returns an empty string. If the string contains
+// non-whitespace characters, it utilizes a precompiled regular expression (regexpDupSpaces)
+// to identify and replace all sequences of whitespace characters (including spaces, tabs, and
+// newlines) with a single space. This helps to normalize whitespace in the string.
+//
+// Parameters:
+// - `s`: The input string from which duplicate whitespace needs to be removed.
+//
+// Returns:
+//   - A string with all sequences of whitespace characters replaced by a single space.
+//     If the input string is empty or only contains whitespace, an empty string is returned.
+//
+// Example:
+//
+//	result := trimWhitespace("This   is  an example.\n\nThis is another line.") // result will be "This is an example. This is another line."
+func trimWhitespace(s string) string {
+	if isEmpty(s) {
+		return ""
+	}
+	// Use a regular expression to replace all sequences of whitespace characters with a single space.
+	s = regexpDupSpaces.ReplaceAllString(s, " ")
+	return s
 }

@@ -182,7 +182,7 @@ func Get(json, path string) Context {
 			if path[0] == '@' && !DisableTransformers {
 				cPath, cJson, ok = adjustTransformer(json, path)
 			} else if path[0] == '!' {
-				cPath, cJson, ok = parseStaticValue(path)
+				cPath, cJson, ok = parseStaticSegment(path)
 			}
 			if ok {
 				path = cPath
@@ -278,7 +278,7 @@ func Get(json, path string) Context {
 		res.index = 0
 		return res
 	}
-	calcSubstring(json, c)
+	computeIndex(json, c)
 	return c.value
 }
 
@@ -457,7 +457,7 @@ func Foreach(json string, iterator func(line Context) bool) {
 //
 //	// Output: "IsValidJSON JSON"
 func IsValidJSON(json string) bool {
-	_, ok := verifyJSON(fromStr2Bytes(json), 0)
+	_, ok := verifyJSON(unsafeStringToBytes(json), 0)
 	return ok
 }
 
