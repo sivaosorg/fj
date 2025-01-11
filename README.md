@@ -145,4 +145,11 @@ In addition to the `.` symbol, several other characters hold special significanc
 
 ```shell
 > anim*ls.1.name # "Barky"
+> *nimals.1.name # "Barky"
+```
+
+- **Escape Character**: Characters with special meanings, like `.`, `*`, and `?`, can be escaped using the `\` symbol.
+
+```shell
+> properties.alias\.description # "An unique identifier in a submission."
 ```
