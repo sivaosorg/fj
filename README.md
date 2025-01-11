@@ -120,13 +120,13 @@ Given the `JSON` string
 
 A path is a string format used to define a pattern for efficiently retrieving values from a JSON structure.
 
-## Path
+### Path
 
 A `fj` path is designed to be represented as a sequence of elements divided by a `.` symbol.
 
 In addition to the `.` symbol, several other characters hold special significance, such as `|`, `#`, `@`, `\`, `*`, `!`, and `?`.
 
-## Access Values - Object
+### Access Values - Object
 
 - **Basic**: in most situations, you'll simply need to access values using the object name or array index.
 
@@ -154,7 +154,7 @@ In addition to the `.` symbol, several other characters hold special significanc
 > properties.alias\.description # "An unique identifier in a submission."
 ```
 
-## Access Values - Arrays
+### Access Values - Arrays
 
 The `#` symbol enables navigation within JSON arrays. To retrieve the length of an array, simply use the `#` on its own.
 
