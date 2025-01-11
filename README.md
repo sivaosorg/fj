@@ -154,7 +154,7 @@ In addition to the `.` symbol, several other characters hold special significanc
 > properties.alias\.description # "An unique identifier in a submission."
 ```
 
-### Access Values - Arrays
+### Access Values - Array
 
 The `#` symbol enables navigation within JSON arrays. To retrieve the length of an array, simply use the `#` on its own.
 
