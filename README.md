@@ -105,20 +105,12 @@ In addition to the `.` symbol, several other characters hold special significanc
 In most situations, you'll simply need to access values using the object name or array index.
 
 ```shell
-id
-# "http://subs/base-sample-schema.json"
-properties.alias.description
-# "An unique identifier in a submission."
-properties.alias.minLength
-# 1
-required
-# ["alias", "taxonId", "releaseDate"]
-required.0
-# "alias"
-required.1
-# "taxonId"
-oneOf.0.required
-# ["alias", "team"]
-oneOf.0.required.1
-# "team"
+> id # "http://subs/base-sample-schema.json"
+> properties.alias.description # "An unique identifier in a submission."
+> properties.alias.minLength # 1
+> required # ["alias", "taxonId", "releaseDate"]
+> required.0 # "alias"
+> required.1 # "taxonId"
+> oneOf.0.required # ["alias", "team"]
+> oneOf.0.required.1 # "team"
 ```
