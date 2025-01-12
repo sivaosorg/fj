@@ -372,3 +372,14 @@ However, the `|` behaves differently from `.` when used after the `#` in the con
 > bank.#(gender=="female")#.0 >> []
 > bank.#(gender=="female")#.# >> []
 ```
+
+### Multi-Selectors
+
+The capability to combine multiple selectors into a single structure. Enclosing comma-separated selectors within `[...]` creates a new array, while using `{...}` generates a new object.
+
+eg.
+
+```shell
+> {version,author,type,"stock_statics_symbol":stock.#(price_2007>=10)#.symbol} >> {"version":"1.0.0","author":"subs","type":"object","stock_statics_symbol":["MMM","AMZN","CPB","DIS","DOW","XOM","GPS","GIS"]}
+> {version,author,type,"stock_statics_symbol":stock.#(company%"*m*")#.symbol} >> {"version":"1.0.0","author":"subs","type":"object","stock_statics_symbol":["AMZN","CPB","DOW"]}
+```
