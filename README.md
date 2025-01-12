@@ -204,7 +204,7 @@ In addition to the `.` symbol, several other characters hold special significanc
 
 - **Basic**: in most situations, you'll simply need to access values using the object name or array index.
 
-```shell
+```bash
 > id #output: "http://subs/base-sample-schema.json"
 > properties.alias.description #output: "An unique identifier in a submission."
 > properties.alias.minLength #output: 1
@@ -218,14 +218,14 @@ In addition to the `.` symbol, several other characters hold special significanc
 
 - **Wildcards**: A key can include special wildcard symbols like `*` and `?`. The `*` matches any sequence of characters (including none), while `?` matches exactly one character.
 
-```shell
+```bash
 > anim*ls.1.name #output: "Barky"
 > *nimals.1.name #output: "Barky"
 ```
 
 - **Escape Character**: Characters with special meanings, like `.`, `*`, and `?`, can be escaped using the `\` symbol.
 
-```shell
+```bash
 > properties.alias\.description #output: "An unique identifier in a submission."
 ```
 
@@ -233,7 +233,7 @@ In addition to the `.` symbol, several other characters hold special significanc
 
 The `#` symbol enables navigation within JSON arrays. To retrieve the length of an array, simply use the `#` on its own.
 
-```shell
+```bash
 > animals.# #output: 3 (length of an array)
 > animals.#.name #output: ["Meowsy","Barky","Purrpaws"]
 ```
@@ -243,7 +243,7 @@ The `#` symbol enables navigation within JSON arrays. To retrieve the length of 
 You can also search an array for the first match by using `#(...)`, or retrieve all matches with `#(...)#`.
 Queries support comparison operators such as `==`, `!=`, `<`, `<=`, `>`, `>=`, along with simple pattern matching operators `%` (like) and `!%` (not like).
 
-```shell
+```bash
 > stock.#(price_2002==56.27).symbol #output: "MMM"
 > stock.#(company=="Amazon.com").symbol #output: "AMZN"
 > stock.#(initial_price>=10)#.symbol #output: ["MMM","AMZN","CPB","DIS","DOW","XOM","F","GPS","GIS"]
