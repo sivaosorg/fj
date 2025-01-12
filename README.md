@@ -205,28 +205,28 @@ In addition to the `.` symbol, several other characters hold special significanc
 - **Basic**: in most situations, you'll simply need to access values using the object name or array index.
 
 ```shell
-> id # "http://subs/base-sample-schema.json"
-> properties.alias.description # "An unique identifier in a submission."
-> properties.alias.minLength # 1
-> required # ["alias", "taxonId", "releaseDate"]
-> required.0 # "alias"
-> required.1 # "taxonId"
-> oneOf.0.required # ["alias", "team"]
-> oneOf.0.required.1 # "team"
-> properties.sampleRelationships # { "$ref": "definitions-schema.json#/definitions/sampleRelationships" }
+> id #output: "http://subs/base-sample-schema.json"
+> properties.alias.description #output: "An unique identifier in a submission."
+> properties.alias.minLength #output: 1
+> required #output: ["alias", "taxonId", "releaseDate"]
+> required.0 #output: "alias"
+> required.1 #output: "taxonId"
+> oneOf.0.required #output: ["alias", "team"]
+> oneOf.0.required.1 #output: "team"
+> properties.sampleRelationships #output: { "$ref": "definitions-schema.json#/definitions/sampleRelationships" }
 ```
 
 - **Wildcards**: A key can include special wildcard symbols like `*` and `?`. The `*` matches any sequence of characters (including none), while `?` matches exactly one character.
 
 ```shell
-> anim*ls.1.name # "Barky"
-> *nimals.1.name # "Barky"
+> anim*ls.1.name #output: "Barky"
+> *nimals.1.name #output: "Barky"
 ```
 
 - **Escape Character**: Characters with special meanings, like `.`, `*`, and `?`, can be escaped using the `\` symbol.
 
 ```shell
-> properties.alias\.description # "An unique identifier in a submission."
+> properties.alias\.description #output: "An unique identifier in a submission."
 ```
 
 ### Access Values - Array
@@ -234,8 +234,8 @@ In addition to the `.` symbol, several other characters hold special significanc
 The `#` symbol enables navigation within JSON arrays. To retrieve the length of an array, simply use the `#` on its own.
 
 ```shell
-> animals.# # 3 (length of an array)
-> animals.#.name # ["Meowsy","Barky","Purrpaws"]
+> animals.# #output: 3 (length of an array)
+> animals.#.name #output: ["Meowsy","Barky","Purrpaws"]
 ```
 
 ### Queries
@@ -244,15 +244,15 @@ You can also search an array for the first match by using `#(...)`, or retrieve 
 Queries support comparison operators such as `==`, `!=`, `<`, `<=`, `>`, `>=`, along with simple pattern matching operators `%` (like) and `!%` (not like).
 
 ```shell
-> stock.#(price_2002==56.27).symbol # "MMM"
-> stock.#(company=="Amazon.com").symbol # "AMZN"
-> stock.#(initial_price>=10)#.symbol # ["MMM","AMZN","CPB","DIS","DOW","XOM","F","GPS","GIS"]
-> stock.#(company%"D*")#.symbol # ["DIS","DOW"]
-> stock.#(company!%"D*")#.symbol # ["MMM","AMZN","CPB","XOM","F","GPS","GIS"]
-> stock.#(company!%"F*")#.symbol # ["MMM","AMZN","CPB","DIS","DOW","XOM","GPS","GIS"]
-> stock.#(description%"*stores*")#.symbol # ["CPB","GPS","GIS"]
-> required.#(%"*as*")# # ["alias","releaseDate"]
-> required.#(%"*as*") # "alias"
-> required.#(!%"*s*") # "taxonId"
-> animals.#(foods.likes.#(%"*a*"))#.name # ["Meowsy","Barky"]
+> stock.#(price_2002==56.27).symbol #output: "MMM"
+> stock.#(company=="Amazon.com").symbol #output: "AMZN"
+> stock.#(initial_price>=10)#.symbol #output: ["MMM","AMZN","CPB","DIS","DOW","XOM","F","GPS","GIS"]
+> stock.#(company%"D*")#.symbol #output: ["DIS","DOW"]
+> stock.#(company!%"D*")#.symbol #output: ["MMM","AMZN","CPB","XOM","F","GPS","GIS"]
+> stock.#(company!%"F*")#.symbol #output: ["MMM","AMZN","CPB","DIS","DOW","XOM","GPS","GIS"]
+> stock.#(description%"*stores*")#.symbol #output: ["CPB","GPS","GIS"]
+> required.#(%"*as*")# #output: ["alias","releaseDate"]
+> required.#(%"*as*") #output: "alias"
+> required.#(!%"*s*") #output: "taxonId"
+> animals.#(foods.likes.#(%"*a*"))#.name #output: ["Meowsy","Barky"]
 ```
