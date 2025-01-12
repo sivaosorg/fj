@@ -355,7 +355,7 @@ eg.
 
 The `.` is the default separator, but you can also use a `|`.  
 In most situations, both produce the same results.  
-However, the `|` behaves differently from `.` when used after the `#` in the context of [Arrays](#access-values---array) and [Queries](#queries).
+However, the `|` behaves differently from `.` when used after the `#` in the context of [Access Values - Array](#access-values---array) and [Queries](#queries).
 
 ```shell
 > bank.0.balance >> "$1,404.23"
@@ -364,5 +364,4 @@ However, the `|` behaves differently from `.` when used after the `#` in the con
 > bank|0|balance >> "$1,404.23"
 > bank.# >> 6
 > bank|# >> 6
-
 ```
