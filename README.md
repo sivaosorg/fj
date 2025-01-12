@@ -230,7 +230,7 @@ Given the `JSON` string
       "age": 39,
       "eyeColor": "brown",
       "name": "Davis Wade",
-      "gender": "male",
+      "gender": "female",
       "company": "ASSISTIX",
       "email": "daviswade@assistix.com",
       "phone": "+1 (836) 432-2542",
@@ -364,4 +364,11 @@ However, the `|` behaves differently from `.` when used after the `#` in the con
 > bank|0|balance >> "$1,404.23"
 > bank.# >> 6
 > bank|# >> 6
+> bank.#(gender=="female")# >> [{"isActive":false,"balance":"$2,284.89","age":20,"eyeColor":"brown","name":"Rachelle Chang","gender":"female","company":"VERAQ","email":"rachellechang@veraq.com","phone":"+1 (955) 564-2002","address":"220 Drew Street, Ventress, Puerto Rico, 8432"},{"isActive":true,"balance":"$1,624.60","age":39,"eyeColor":"brown","name":"Davis Wade","gender":"female","company":"ASSISTIX","email":"daviswade@assistix.com","phone":"+1 (836) 432-2542","address":"532 Amity Street, Yukon, Palau, 3561"}]
+> bank.#(gender=="female")#|# >> 2
+> bank.#(gender=="female")#.name >> ["Rachelle Chang","Davis Wade"]
+> bank.#(gender=="female")#|name >> not-present
+> bank.#(gender=="female")#|0 >> {"isActive":false,"balance":"$2,284.89","age":20,"eyeColor":"brown","name":"Rachelle Chang","gender":"female","company":"VERAQ","email":"rachellechang@veraq.com","phone":"+1 (955) 564-2002","address":"220 Drew Street, Ventress, Puerto Rico, 8432"}
+> bank.#(gender=="female")#.0 >> []
+> bank.#(gender=="female")#.# >> []
 ```
