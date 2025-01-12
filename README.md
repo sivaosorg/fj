@@ -186,6 +186,80 @@ Given the `JSON` string
       "price_2007": 28.76,
       "symbol": "GIS"
     }
+  ],
+  "bank": [
+    {
+      "isActive": false,
+      "balance": "$1,404.23",
+      "age": 26,
+      "eyeColor": "blue",
+      "name": "Stark Jenkins",
+      "gender": "male",
+      "company": "HINWAY",
+      "email": "starkjenkins@hinway.com",
+      "phone": "+1 (943) 542-3591",
+      "address": "766 Cooke Court, Dunbar, Connecticut, 9512"
+    },
+    {
+      "isActive": false,
+      "balance": "$1,247.08",
+      "age": 36,
+      "eyeColor": "green",
+      "name": "Odonnell Rollins",
+      "gender": "male",
+      "company": "NEXGENE",
+      "email": "odonnellrollins@nexgene.com",
+      "phone": "+1 (810) 521-2350",
+      "address": "210 Pleasant Place, Lloyd, Mississippi, 1636"
+    },
+    {
+      "isActive": false,
+      "balance": "$2,284.89",
+      "age": 20,
+      "eyeColor": "brown",
+      "name": "Rachelle Chang",
+      "gender": "female",
+      "company": "VERAQ",
+      "email": "rachellechang@veraq.com",
+      "phone": "+1 (955) 564-2002",
+      "address": "220 Drew Street, Ventress, Puerto Rico, 8432"
+    },
+    {
+      "isActive": true,
+      "balance": "$1,624.60",
+      "age": 39,
+      "eyeColor": "brown",
+      "name": "Davis Wade",
+      "gender": "male",
+      "company": "ASSISTIX",
+      "email": "daviswade@assistix.com",
+      "phone": "+1 (836) 432-2542",
+      "address": "532 Amity Street, Yukon, Palau, 3561"
+    },
+    {
+      "isActive": true,
+      "balance": "$3,818.97",
+      "age": 23,
+      "eyeColor": "green",
+      "name": "Oneill Everett",
+      "gender": "male",
+      "company": "INCUBUS",
+      "email": "oneilleverett@incubus.com",
+      "phone": "+1 (958) 522-2724",
+      "address": "273 Temple Court, Shelby, Georgia, 8682"
+    },
+    {
+      "isActive": false,
+      "balance": "$3,243.63",
+      "age": 21,
+      "eyeColor": null,
+      "name": "Dalton Waters",
+      "gender": "male",
+      "company": "OVATION",
+      "email": "daltonwaters@ovation.com",
+      "phone": "+1 (899) 464-3878",
+      "address": "909 Wyona Street, Adelino, Hawaii, 6449"
+    }
   ]
 }
 ```
@@ -240,8 +314,8 @@ The `#` symbol enables navigation within JSON arrays. To retrieve the length of 
 
 ### Queries
 
-You can also search an array for the first match by using `#(...)`, or retrieve all matches with `#(...)#`.
-Queries support comparison operators such as `==`, `!=`, `<`, `<=`, `>`, `>=`, along with simple pattern matching operators `%` (like) and `!%` (not like).
+- You can also search an array for the first match by using `#(...)`, or retrieve all matches with `#(...)#`.
+  Queries support comparison operators such as `==`, `!=`, `<`, `<=`, `>`, `>=`, along with simple pattern matching operators `%` (like) and `!%` (not like).
 
 ```shell
 > stock.#(price_2002==56.27).symbol >> "MMM"
@@ -255,4 +329,24 @@ Queries support comparison operators such as `==`, `!=`, `<`, `<=`, `>`, `>=`, a
 > required.#(%"*as*") >> "alias"
 > required.#(!%"*s*") >> "taxonId"
 > animals.#(foods.likes.#(%"*a*"))#.name >> ["Meowsy","Barky"]
+```
+
+- The `~` (tilde) operator evaluates a value as a boolean before performing a comparison.
+  The most recent value that did not exist is considered `false`.
+  The supported tilde comparison types are:
+
+```shell
+~true      Interprets truthy values as true
+~false     Interprets falsy and undefined values as true
+~null      Interprets null and undefined values as true
+~*         Interprets any defined value as true
+```
+
+eg.
+
+```shell
+> bank.#(isActive==~true)#.name >> ["Davis Wade","Oneill Everett"]
+> bank.#(isActive==~false)#.name >> ["Stark Jenkins","Odonnell Rollins","Rachelle Chang","Dalton Waters"]
+> bank.#(eyeColor==~null)#.name >> ["Dalton Waters"]
+> bank.#(company==~*)#.name >> ["Stark Jenkins","Odonnell Rollins","Rachelle Chang","Davis Wade","Oneill Everett","Dalton Waters"]
 ```

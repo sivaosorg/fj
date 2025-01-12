@@ -1181,7 +1181,7 @@ func (ctx Context) Map() map[string]Context {
 
 // Foreach iterates through the values of a JSON object or array, applying the provided iterator function.
 //
-// If the `Context` represents a non-existent value (Null or invalid JSON), no iteration occurs.
+// If the `Context` represents a non existent value (Null or invalid JSON), no iteration occurs.
 // For JSON objects, the iterator receives both the key and value of each item.
 // For JSON arrays, the iterator receives only the value of each item.
 // If the `Context` is not an array or object, the iterator is called once with the whole value.
