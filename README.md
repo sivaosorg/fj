@@ -350,3 +350,19 @@ eg.
 > bank.#(eyeColor==~null)#.name >> ["Dalton Waters"]
 > bank.#(company==~*)#.name >> ["Stark Jenkins","Odonnell Rollins","Rachelle Chang","Davis Wade","Oneill Everett","Dalton Waters"]
 ```
+
+### Dot & Pipe
+
+The `.` is the default separator, but you can also use a `|`.  
+In most situations, both produce the same results.  
+However, the `|` behaves differently from `.` when used after the `#` in the context of [Arrays](#access-values---array) and [Queries](#queries).
+
+```shell
+> bank.0.balance >> "$1,404.23"
+> bank|0.balance >> "$1,404.23"
+> bank.0|balance >> "$1,404.23"
+> bank|0|balance >> "$1,404.23"
+> bank.# >> 6
+> bank|# >> 6
+
+```
