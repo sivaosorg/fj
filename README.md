@@ -383,3 +383,14 @@ eg.
 > {version,author,type,"stock_statics_symbol":stock.#(price_2007>=10)#.symbol} >> {"version":"1.0.0","author":"subs","type":"object","stock_statics_symbol":["MMM","AMZN","CPB","DIS","DOW","XOM","GPS","GIS"]}
 > {version,author,type,"stock_statics_symbol":stock.#(company%"*m*")#.symbol} >> {"version":"1.0.0","author":"subs","type":"object","stock_statics_symbol":["AMZN","CPB","DOW"]}
 ```
+
+### Literals
+
+Support for JSON literals offers a straightforward method for creating static JSON blocks. This feature is especially helpful when building a new JSON document using [Multi-Selectors](#multi-selectors).
+A JSON literal is introduced with the `!` declaration character.
+
+eg. Add 2 fields, `marked` and `scope`
+
+```shell
+> {version,author,type,"stock_statics_symbol":stock.#(price_2007>=10)#.symbol,"marked":!true,"scope":!"static"} >> {"version":"1.0.0","author":"subs","type":"object","stock_statics_symbol":["MMM","AMZN","CPB","DIS","DOW","XOM","GPS","GIS"],"marked":true,"scope":"static"}
+```
