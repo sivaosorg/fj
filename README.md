@@ -394,3 +394,27 @@ eg. Add 2 fields, `marked` and `scope`
 ```shell
 > {version,author,type,"stock_statics_symbol":stock.#(price_2007>=10)#.symbol,"marked":!true,"scope":!"static"} >> {"version":"1.0.0","author":"subs","type":"object","stock_statics_symbol":["MMM","AMZN","CPB","DIS","DOW","XOM","GPS","GIS"],"marked":true,"scope":"static"}
 ```
+
+### Transformers
+
+A transformer is a path component used to apply custom transformations to the JSON.
+The following built-in transformers are currently available:
+
+| Transformer  | Description                                                                                                                                                  | Arguments                                                                    |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| `@trim`      | Remove leading and trailing whitespace from the input JSON string.                                                                                           |                                                                              |
+| `@this`      | Use as a default case when no specific transformation is requested or supported.                                                                             |                                                                              |
+| `@valid`     | Ensure the JSON is valid before processing it further. If the JSON string is not valid, then returns an empty string                                         |                                                                              |
+| `@pretty`    | Format the JSON string into a human-readable, indented format.                                                                                               | `@pretty:{"sort_keys": true, "indent": "\t", "prefix": "tick", "width": 10}` |
+| `@minify`    | Remove all whitespace characters from the JSON string, transforming it into a compact, single-line format order                                              |                                                                              |
+| `@reverse`   | Reverse the order of elements in an array or the order of key-value pairs in an object function                                                              |                                                                              |
+| `@flatten`   | Flattens a JSON array by removing any nested arrays within it                                                                                                | `@flatten:{"deep": true}`                                                    |
+| `@join`      | Merges multiple JSON objects into a single object                                                                                                            | `@join:{"preserve": true}`                                                   |
+| `@keys`      | Extracts the keys from a JSON object and returns them as a JSON array of strings                                                                             |                                                                              |
+| `@values`    | Extracts the values from a JSON object and returns them as a JSON array of values                                                                            |                                                                              |
+| `@string`    | Converts a regular string into a valid JSON string format                                                                                                    |                                                                              |
+| `@json`      | Converts a string into a valid JSON representation                                                                                                           |                                                                              |
+| `@group`     | Processes a JSON string containing objects and arrays, and groups the elements of arrays within objects by their keys                                        |                                                                              |
+| `@search`    | Performs a value lookup on a JSON structure based on the specified path and returns a JSON-encoded string containing all matching values found at that path. |                                                                              |
+| `@uppercase` | Converts the JSON string to uppercase.                                                                                                                       |                                                                              |
+| `@lowercase` | Converts the JSON string to lowercase.                                                                                                                       |                                                                              |
