@@ -430,3 +430,15 @@ The following built-in transformers are currently available:
 | `@wc`         | Counts the number of words in the input string                                                                                                               |                                                                              |
 | `@padLeft`    | Pads the input string with a specified character on the left to a given length                                                                               | `@padLeft:{"padding": "*", "length": 30}`                                    |
 | `@padRight`   | Pads the input string with a specified character on the right to a given length                                                                              | `@padRight:{"padding": "*", "length": 30}`                                   |
+
+eg.
+
+```shell
+> required.1.@flip >> "dInoxat"
+> required.@reverse >> ["releaseDate","taxonId","alias"]
+> required.@reverse.0 >> "releaseDate"
+> required.@reverse.1 >> "taxonId"
+> animals.@join.@minify >> {"name":"Purrpaws","species":"cat","foods":{"likes":["mice"],"dislikes":["cookies"]}}
+> animals.1.@keys >> ["name","species","foods"]
+> animals.1.@values.@minify >> ["Barky","dog",{"likes":["bones","carrots"],"dislikes":["tuna"]}]
+```
