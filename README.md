@@ -441,4 +441,6 @@ eg.
 > animals.@join.@minify >> {"name":"Purrpaws","species":"cat","foods":{"likes":["mice"],"dislikes":["cookies"]}}
 > animals.1.@keys >> ["name","species","foods"]
 > animals.1.@values.@minify >> ["Barky","dog",{"likes":["bones","carrots"],"dislikes":["tuna"]}]
+> {"id":bank.#.company,"details":bank.#(age>=10)#.eyeColor}|@group >> [{"id":"HINWAY","details":"blue"},{"id":"NEXGENE","details":"green"},{"id":"VERAQ","details":"brown"},{"id":"ASSISTIX","details":"brown"},{"id":"INCUBUS","details":"green"},{"id":"OVATION","details":null}]
+> {"id":bank.#.company,"details":bank.#(age>=10)#.eyeColor}|@group|# >> 6
 ```
