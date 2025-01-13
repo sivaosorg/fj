@@ -464,3 +464,32 @@ eg.
         "phone": "+1 (943) 542-3591"
     }
 ```
+
+## Usage
+
+### Retrieve a value
+
+Retrieves JSON data from the specified path, using dot notation (`.`) like "user.name" or "settings.theme". The value is returned as soon as it's located.
+
+eg.
+
+```go
+package main
+
+import (
+	"fmt"
+
+	"github.com/sivaosorg/fj"
+)
+
+const json = `
+{"user":{"id":"12345","name":{"firstName":"John","lastName":"Doe"},"email":"john.doe@example.com","phone":"+1-555-555-5555","address":{"street":"123 Main St","city":"Anytown","state":"CA","postalCode":"12345","country":"USA"},"roles":[{"roleId":"1","roleName":"Admin","permissions":[{"permissionId":"101","permissionName":"View Reports","allowedActions":["view","download"]},{"permissionId":"102","permissionName":"Manage Users","allowedActions":["create","update","delete"]}]},{"roleId":"2","roleName":"Editor","permissions":[{"permissionId":"201","permissionName":"Edit Content","allowedActions":["create","edit","publish"]},{"permissionId":"202","permissionName":"View Analytics","allowedActions":["view"]}]}],"status":"active","createdAt":"2025-01-01T10:00:00Z","lastLogin":"2025-01-12T15:30:00Z"}}
+`
+
+func main() {
+	value := fj.Get(json, "user.id")
+	fmt.Println(value) // 12345
+	value = fj.Get(json, "user.roles.#.roleName")
+	fmt.Println(value) // ["Admin","Editor"]
+}
+```
