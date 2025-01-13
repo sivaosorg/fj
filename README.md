@@ -491,5 +491,9 @@ func main() {
 	fmt.Println(value) // 12345
 	value = fj.Get(json, "user.roles.#.roleName")
 	fmt.Println(value) // ["Admin","Editor"]
+	value = fj.Get(json, "user.roles.#.permissions.#.permissionName")
+	fmt.Println(value) // [["View Reports","Manage Users"],["Edit Content","View Analytics"]]
+	value = fj.Get(json, "user.address")
+	fmt.Println(value) // {"street":"123 Main St","city":"Anytown","state":"CA","postalCode":"12345","country":"USA"}
 }
 ```
