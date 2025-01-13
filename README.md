@@ -448,4 +448,6 @@ eg.
 > stock.0.company.@hex >> "334d"
 > stock.0.company.@bin >> "0011001101001101"
 > stock.0.description.@wc >> 42
+> author|@padLeft:{"padding": "*", "length": 15}|@string >> "***********subs"
+> author|@padRight:{"padding": "*", "length": 15}|@string >> "subs***********"
 ```
