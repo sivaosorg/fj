@@ -451,16 +451,16 @@ eg.
 > author|@padLeft:{"padding": "*", "length": 15}|@string >> "***********subs"
 > author|@padRight:{"padding": "*", "length": 15}|@string >> "subs***********"
 > bank.0.@pretty:{"sort_keys": true}    >>
-                                {
-                                    "address": "766 Cooke Court, Dunbar, Connecticut, 9512",
-                                    "age": 26,
-                                    "balance": "$1,404.23",
-                                    "company": "HINWAY",
-                                    "email": "starkjenkins@hinway.com",
-                                    "eyeColor": "blue",
-                                    "gender": "male",
-                                    "isActive": false,
-                                    "name": "Stark Jenkins",
-                                    "phone": "+1 (943) 542-3591"
-                                }
+    {
+        "address": "766 Cooke Court, Dunbar, Connecticut, 9512",
+        "age": 26,
+        "balance": "$1,404.23",
+        "company": "HINWAY",
+        "email": "starkjenkins@hinway.com",
+        "eyeColor": "blue",
+        "gender": "male",
+        "isActive": false,
+        "name": "Stark Jenkins",
+        "phone": "+1 (943) 542-3591"
+    }
 ```
