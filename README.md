@@ -443,4 +443,9 @@ eg.
 > animals.1.@values.@minify >> ["Barky","dog",{"likes":["bones","carrots"],"dislikes":["tuna"]}]
 > {"id":bank.#.company,"details":bank.#(age>=10)#.eyeColor}|@group >> [{"id":"HINWAY","details":"blue"},{"id":"NEXGENE","details":"green"},{"id":"VERAQ","details":"brown"},{"id":"ASSISTIX","details":"brown"},{"id":"INCUBUS","details":"green"},{"id":"OVATION","details":null}]
 > {"id":bank.#.company,"details":bank.#(age>=10)#.eyeColor}|@group|# >> 6
+> stock.@search:#(price_2007>=50)|0.company >> "3M"
+> stock.@search:#(price_2007>=50)|0.company.@lowercase >> "3m"
+> stock.0.company.@hex >> "334d"
+> stock.0.company.@bin >> "0011001101001101"
+> stock.0.description.@wc >> 42
 ```
