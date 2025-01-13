@@ -400,7 +400,7 @@ eg. Add 2 fields, `marked` and `scope`
 A transformer is a path component used to apply custom transformations to the JSON.
 The following built-in transformers are currently available:
 
-| Transformer   | Description                                                                                                                                                  | Arguments                                                                    |
+| Transformer   | Description                                                                                                                                                  | Arguments (optional)                                                         |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
 | `@trim`       | Remove leading and trailing whitespace from the input JSON string.                                                                                           |                                                                              |
 | `@this`       | Use as a default case when no specific transformation is requested or supported.                                                                             |                                                                              |
