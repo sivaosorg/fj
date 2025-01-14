@@ -700,3 +700,30 @@ func main() {
 	fmt.Println(ctx.Int64()) // 12345
 }
 ```
+
+### Parse & Get
+
+The `Parse*(json)` function to perform a straightforward parsing, and `ctx.Get*(path)` to retrieve a value from the parsed result.
+
+eg.
+
+```go
+package main
+
+import (
+	"fmt"
+
+	"github.com/sivaosorg/fj"
+)
+
+var json []byte = []byte(`{"user":{"id":12345,"name":{"firstName":"John","lastName":"Doe"},"email":"john.doe@example.com","phone":"+1-555-555-5555","address":{"street":"123 Main St","city":"Anytown","state":"CA","postalCode":"12345","country":"USA"},"roles":[{"roleId":"1","roleName":"Admin","permissions":[{"permissionId":"101","permissionName":"View Reports","allowedActions":["view","download"]},{"permissionId":"102","permissionName":"Manage Users","allowedActions":["create","update","delete"]}]},{"roleId":"2","roleName":"Editor","permissions":[{"permissionId":"201","permissionName":"Edit Content","allowedActions":["create","edit","publish"]},{"permissionId":"202","permissionName":"View Analytics","allowedActions":["view"]}]}],"status":"active","createdAt":"2025-01-01T10:00:00Z","lastLogin":"2025-01-12T15:30:00Z"}}`)
+
+func main() {
+	ctx := fj.ParseBytes(json).Get("user").Get("id")
+	fmt.Println(ctx.Int64()) // 12345
+	ctx = fj.GetBytes(json, "user.id")
+	fmt.Println(ctx.Int64()) // 12345
+	ctx = fj.GetBytes(json, "user").Get("id")
+	fmt.Println(ctx.Int64()) // 12345
+}
+```
