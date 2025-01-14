@@ -555,3 +555,28 @@ func main() {
 	fmt.Println(string(raw)) // ["Admin","Editor"]
 }
 ```
+
+### Validate JSON
+
+The `Get*` and `Parse*` functions assume that the JSON is properly structured. Invalid JSON won't cause a panic, but it could lead to unexpected outcomes.
+
+eg.
+
+```go
+package main
+
+import (
+	"fmt"
+
+	"github.com/sivaosorg/fj"
+)
+
+var json []byte = []byte(`{"user":{"id":"12345","name":{"firstName":"John","lastName":"Doe"},"email":"john.doe@example.com","phone":"+1-555-555-5555","address":{"street":"123 Main St","city":"Anytown","state":"CA","postalCode":"12345","country":"USA"},"roles":[{"roleId":"1","roleName":"Admin","permissions":[{"permissionId":"101","permissionName":"View Reports","allowedActions":["view","download"]},{"permissionId":"102","permissionName":"Manage Users","allowedActions":["create","update","delete"]}]},{"roleId":"2","roleName":"Editor","permissions":[{"permissionId":"201","permissionName":"Edit Content","allowedActions":["create","edit","publish"]},{"permissionId":"202","permissionName":"View Analytics","allowedActions":["view"]}]}],"status":"active","createdAt":"2025-01-01T10:00:00Z","lastLogin":"2025-01-12T15:30:00Z"}}`)
+
+func main() {
+	isValid := fj.IsValidJSONBytes(json) // or fj.IsValidJSON(string(json))
+	fmt.Println(isValid)                 // true
+	isValid = fj.IsValidJSON("{}")
+	fmt.Println(isValid) // true
+}
+```
