@@ -556,7 +556,7 @@ func main() {
 }
 ```
 
-### Validate JSON
+### Validation
 
 The `Get*` and `Parse*` functions assume that the JSON is properly structured. Invalid JSON won't cause a panic, but it could lead to unexpected outcomes.
 
@@ -581,7 +581,7 @@ func main() {
 }
 ```
 
-### Verify if a value exists
+### Existence
 
 Occasionally, you simply need to check if a value is present.
 
@@ -606,7 +606,7 @@ func main() {
 }
 ```
 
-### Loop through an object or array.
+### Loop
 
 The `Foreach` method enables efficient iteration over objects or arrays. For objects, both the key and value are provided to the callback function, while for arrays, only the value is passed. The iteration can be halted by returning `false` from the callback.
 
