@@ -727,3 +727,35 @@ func main() {
 	fmt.Println(ctx.Int64()) // 12345
 }
 ```
+
+### JSON Lines
+
+Support for [JSON Lines](https://jsonlines.org/) is available using the `..` prefix, enabling the treatment of a multi-line document as an array.
+
+eg.
+
+```go
+package main
+
+import (
+	"fmt"
+
+	"github.com/sivaosorg/fj"
+)
+
+var json []byte = []byte(`
+		{"roleId":"1","roleName":"Admin","permissions":[{"permissionId":"101","permissionName":"View Reports","allowedActions":["view","download"]},{"permissionId":"102","permissionName":"Manage Users","allowedActions":["create","update","delete"]}]}
+		{"roleId":"2","roleName":"Editor","permissions":[{"permissionId":"201","permissionName":"Edit Content","allowedActions":["create","edit","publish"]},{"permissionId":"202","permissionName":"View Analytics","allowedActions":["view"]}]}
+`)
+
+func main() {
+	ctx := fj.ParseBytes(json).Get("..#")
+	fmt.Println(ctx.String()) // 2
+	ctx = fj.GetBytes(json, "..0")
+	fmt.Println(ctx.String()) // {"roleId":"1","roleName":"Admin","permissions":[{"permissionId":"101","permissionName":"View Reports","allowedActions":["view","download"]},{"permissionId":"102","permissionName":"Manage Users","allowedActions":["create","update","delete"]}]}
+	ctx = fj.GetBytes(json, "..#.roleName")
+	fmt.Println(ctx.String()) // ["Admin","Editor"]
+	ctx = fj.GetBytes(json, `..#.permissions.#(permissionId=="101").permissionName`)
+	fmt.Println(ctx.String()) // ["View Reports"]
+}
+```
