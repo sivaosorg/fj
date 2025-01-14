@@ -759,3 +759,84 @@ func main() {
 	fmt.Println(ctx.String()) // ["View Reports"]
 }
 ```
+
+### Transformers
+
+A transformer is a path component used to apply custom transformations to the JSON
+
+eg.
+
+```go
+package main
+
+import (
+	"fmt"
+
+	"github.com/sivaosorg/fj"
+)
+
+var json []byte = []byte(`
+{"id":"http://subs/base-sample-schema.json","schema":"http://json-schema.org/draft-07/schema#","title":"Submissions Sample Schema","description":"A base validation sample schema","version":"1.0.0","author":"subs","type":"object","properties":{"alias":{"description":"An unique identifier in a submission.","type":"string","minLength":1},"title":{"description":"Title of the sample.","type":"string","minLength":1},"description":{"description":"More extensive free-form description.","type":"string","minLength":1},"taxonId":{"type":"integer","minimum":1},"taxon":{"type":"string","minLength":1},"releaseDate":{"type":"string","format":"date"},"attributes":{"description":"Attributes for describing a sample.","type":"object","properties":{},"patternProperties":{"^.*$":{"$ref":"definitions-schema.json#/definitions/attributes_structure"}}},"sampleRelationships":{"$ref":"definitions-schema.json#/definitions/sampleRelationships"}},"required":["alias","taxonId","releaseDate"],"oneOf":[{"required":["alias","team"]},{"required":["accession"]}],"animals":[{"name":"Meowsy","species":"cat","foods":{"likes":["tuna","catnip"],"dislikes":["ham","zucchini"]}},{"name":"Barky","species":"dog","foods":{"likes":["bones","carrots"],"dislikes":["tuna"]}},{"name":"Purrpaws","species":"cat","foods":{"likes":["mice"],"dislikes":["cookies"]}}],"stock":[{"company":"3M","description":"3M, based in Minnesota, may be best known for its Scotch tape and Post-It Notes, but it also produces sand paper, adhesives, medical products, computer screen filters, food safety items, stationery products and many products used in automotive, marine, and aircraft industries.","initial_price":44.28,"price_2002":56.27,"price_2007":95.85,"symbol":"MMM"},{"company":"Amazon.com","description":"Amazon.com, Inc. is an online retailer in North America and internationally. The company serves consumers through its retail Web sites and focuses on selection, price, and convenience. It also offers programs that enable sellers to sell their products on its Web sites, and their own branded Web sites. In addition, the company serves developer customers through Amazon Web Services, which provides access to technology infrastructure that developers can use to enable virtually various type of business. Further, it manufactures and sells the Kindle e-reader. Founded in 1994 and headquartered in Seattle, Washington.","initial_price":89.38,"price_2002":17.01,"price_2007":93.43,"symbol":"AMZN"},{"company":"Campbell Soup","description":"Campbell Soup is a worldwide food company, offering condensed and ready-to-serve soups; broth, stocks, and canned poultry; pasta sauces; Mexican sauces; canned pastas, gravies, and beans; juices and beverages; and tomato juices. Its customers include retail food chains, mass discounters, mass merchandisers, club stores, convenience stores, drug stores and other retail, and commercial and non-commercial establishments. Campbell Soup Company was founded in 1869 and is headquartered in Camden, New Jersey.","initial_price":37,"price_2002":22.27,"price_2007":36.4,"symbol":"CPB"},{"company":"Disney","description":"The Walt Disney Company, founded in 1923, is a worldwide entertainment company, with movies, cable networks, radio networks, movie production, musical recordings and live stage plays. Disney also operates Walt Disney World in Florida and Disneyland in California, Disney Cruise Line, and international Disney resorts. Disney owns countless licenses and literary properties and publishes books and magazines.","initial_price":40.68,"price_2002":15.24,"price_2007":35.47,"symbol":"DIS"},{"company":"Dow Chemical","description":"The Dow Chemical Company manufactures raw materials that go into consumer products and services. These materials include food and pharmaceutical ingredients, electronic displays, semiconductor packaging, water purification, insulation, adhesives, pest control, polyurethane, polystyrene (goes into plastics), and crude-oil based raw materials. Dow was founded in 1897 and is based in Midland, Michigan.","initial_price":38.83,"price_2002":27.65,"price_2007":44.67,"symbol":"DOW"},{"company":"Exxon Mobil","description":"Exxon Mobil engages in the exploration and production of crude oil and natural gas, and manufacture of petroleum products. The company manufactures commodity petrochemicals. The company has operations in the United States, Canada/South America, Europe, Africa, Asia, and Australia/Oceania. Exxon Mobil Corporation was founded in1870 and is based in Irving, Texas.","initial_price":39,"price_2002":32.82,"price_2007":91.36,"symbol":"XOM"},{"company":"Ford","description":"Ford Motor Co. develops, manufactures, sells and services vehicles and parts worldwide. Ford sells cars and trucks primarily under the Ford and Lincoln brands. It sells to consumers (through retail dealers) and to rental car companies, leasing companies, and governments. Ford also provides maintenance and repair services. Ford also offers financing to vehicle purchasers. Ford was founded in 1903 and is based in Dearborn, Michigan.","initial_price":27.34,"price_2002":9.63,"price_2007":8.37,"symbol":"F"},{"company":"The Gap","description":"The Gap, Inc. sells retail clothing, accessories and personal care products globally under the brand names Gap, Old Navy, Banana Republic, Piperlime, Athleta and Intermix. Products include sports apparel, casual clothing, sleepwear, footwear and infants’ and children’s clothing. The company has company-owned stores as well as franchise stores, online stores and catalogs. The Gap was founded in 1969 and is headquartered in San Francisco, California.","initial_price":46,"price_2002":11.56,"price_2007":18.9,"symbol":"GPS"},{"company":"General Mills","description":"General Mills manufactures and sells consumer foods worldwide. Products include cereals, frozen vegetables, dough, dessert and baking mixes, frozen pizzas, grains, fruits, ice creams and organic products. It sells to grocery stores as well as commercial food service distributors, restaurants and convenience stores. General Mills was founded in 1928 and is based in Minneapolis, Minnesota.","initial_price":15.59,"price_2002":22.1,"price_2007":28.76,"symbol":"GIS"}],"bank":[{"isActive":false,"balance":"$1,404.23","age":26,"eyeColor":"blue","name":"Stark Jenkins","gender":"male","company":"HINWAY","email":"starkjenkins@hinway.com","phone":"+1 (943) 542-3591","address":"766 Cooke Court, Dunbar, Connecticut, 9512"},{"isActive":false,"balance":"$1,247.08","age":36,"eyeColor":"green","name":"Odonnell Rollins","gender":"male","company":"NEXGENE","email":"odonnellrollins@nexgene.com","phone":"+1 (810) 521-2350","address":"210 Pleasant Place, Lloyd, Mississippi, 1636"},{"isActive":false,"balance":"$2,284.89","age":20,"eyeColor":"brown","name":"Rachelle Chang","gender":"female","company":"VERAQ","email":"rachellechang@veraq.com","phone":"+1 (955) 564-2002","address":"220 Drew Street, Ventress, Puerto Rico, 8432"},{"isActive":true,"balance":"$1,624.60","age":39,"eyeColor":"brown","name":"Davis Wade","gender":"female","company":"ASSISTIX","email":"daviswade@assistix.com","phone":"+1 (836) 432-2542","address":"532 Amity Street, Yukon, Palau, 3561"},{"isActive":true,"balance":"$3,818.97","age":23,"eyeColor":"green","name":"Oneill Everett","gender":"male","company":"INCUBUS","email":"oneilleverett@incubus.com","phone":"+1 (958) 522-2724","address":"273 Temple Court, Shelby, Georgia, 8682"},{"isActive":false,"balance":"$3,243.63","age":21,"eyeColor":null,"name":"Dalton Waters","gender":"male","company":"OVATION","email":"daltonwaters@ovation.com","phone":"+1 (899) 464-3878","address":"909 Wyona Street, Adelino, Hawaii, 6449"}]}
+`)
+
+func main() {
+	ctx := fj.ParseBytes(json).Get("required.1.@flip")
+	fmt.Println(ctx.String()) // "dInoxat"
+
+	ctx = fj.GetBytes(json, "required.@reverse")
+	fmt.Println(ctx.String()) // ["releaseDate","taxonId","alias"]
+
+	ctx = fj.GetBytes(json, "required.@reverse.0")
+	fmt.Println(ctx.String()) // "releaseDate"
+
+	ctx = fj.GetBytes(json, `required.@reverse.1`)
+	fmt.Println(ctx.String()) // "taxonId"
+
+	ctx = fj.GetBytes(json, `animals.@join.@minify`)
+	fmt.Println(ctx.String()) // {"name":"Purrpaws","species":"cat","foods":{"likes":["mice"],"dislikes":["cookies"]}}
+
+	ctx = fj.GetBytes(json, `animals.1.@keys`)
+	fmt.Println(ctx.String()) // ["name","species","foods"]
+
+	ctx = fj.GetBytes(json, `animals.1.@values.@minify`)
+	fmt.Println(ctx.String()) // ["Barky","dog",{"likes":["bones","carrots"],"dislikes":["tuna"]}]
+
+	ctx = fj.GetBytes(json, `{"id":bank.#.company,"details":bank.#(age>=10)#.eyeColor}|@group`)
+	fmt.Println(ctx.String()) // [{"id":"HINWAY","details":"blue"},{"id":"NEXGENE","details":"green"},{"id":"VERAQ","details":"brown"},{"id":"ASSISTIX","details":"brown"},{"id":"INCUBUS","details":"green"},{"id":"OVATION","details":null}]
+
+	ctx = fj.GetBytes(json, `{"id":bank.#.company,"details":bank.#(age>=10)#.eyeColor}|@group|#`)
+	fmt.Println(ctx.String()) // 6
+
+	ctx = fj.GetBytes(json, `stock.@search:#(price_2007>=50)|0.company.@lowercase`)
+	fmt.Println(ctx.String()) // "3m"
+
+	ctx = fj.GetBytes(json, `stock.0.company.@hex`)
+	fmt.Println(ctx.Unprocessed()) // "334d"
+
+	ctx = fj.GetBytes(json, `stock.0.company.@bin`)
+	fmt.Println(ctx.String()) // "0011001101001101"
+
+	ctx = fj.GetBytes(json, `stock.0.description.@wc`)
+	fmt.Println(ctx.String()) // 42
+
+	ctx = fj.GetBytes(json, `author|@padLeft:{"padding": "*", "length": 15}|@string`)
+	fmt.Println(ctx.Unprocessed()) // "***********subs"
+
+	ctx = fj.GetBytes(json, `bank.0.@pretty:{"sort_keys": true}`)
+	fmt.Println(ctx.String()) //
+	/**
+	{
+	  "address": "766 Cooke Court, Dunbar, Connecticut, 9512",
+	  "age": 26,
+	  "balance": "$1,404.23",
+	  "company": "HINWAY",
+	  "email": "starkjenkins@hinway.com",
+	  "eyeColor": "blue",
+	  "gender": "male",
+	  "isActive": false,
+	  "name": "Stark Jenkins",
+	  "phone": "+1 (943) 542-3591"
+	}
+	*/
+}
+```
