@@ -529,7 +529,7 @@ func main() {
 }
 ```
 
-If you're using the `GetBytes([]byte(json), path)` function and want to avoid converting `result.Unprocessed()` into a `[]byte`, you can follow this approach:
+If you're using the `GetBytes([]byte(json), path)` function and want to avoid converting `ctx.Unprocessed()` into a `[]byte`. This is an attempt at a no-allocation sub slice of the original JSON. The method relies on the `ctx.Index()` field, which indicates the position of the raw data in the original JSON. It's possible that `ctx.Index()` could be zero, in which case `ctx.Unprocessed()` is converted into a `[]byte`. You can follow this approach:
 
 eg.
 
