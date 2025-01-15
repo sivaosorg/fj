@@ -721,15 +721,11 @@ var json []byte = []byte(`{"user":{"id":12345,"name":{"firstName":"John","lastNa
 
 func main() {
 	ctx := fj.ParseBytes(json)
-	fmt.Println(ctx.WithStringColored(fj.NoirStyle))
+	fmt.Println(ctx.WithStringColored(fj.ElectricVibeStyle))
 }
 ```
 
 > Output
 
-<!-- <video src="https://raw.githubusercontent.com/sivaosorg/fj/refs/heads/master/assets/fjjsoncolored.mp4" controls="controls" style="max-width: 730px;">
-</video> -->
-
-[JSON Colored](https://raw.githubusercontent.com/sivaosorg/fj/refs/heads/master/assets/fjjsoncolored.mp4)
-
-[![Watch the video](https://i.sstatic.net/Vp2cE.png)](./assets/fjjsoncolored.mp4)
+![ElectricVibeStyle](./assets/JSON-ElectricVibeStyle.png)
+![TropicalVibeStyle](./assets/JSON-TropicalVibeStyle.png)
