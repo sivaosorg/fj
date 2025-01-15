@@ -729,3 +729,71 @@ func main() {
 
 ![ElectricVibeStyle](./assets/JSON-ElectricVibeStyle.png)
 ![TropicalVibeStyle](./assets/JSON-TropicalVibeStyle.png)
+
+## Types
+
+The result type encapsulates one of the following JSON types: `string`, `number`, `boolean`, or `null`. Arrays and objects are represented as their raw JSON forms. The struct for accessing a JSON value:
+
+```go
+// Type represents the different possible types for a JSON value.
+// It is used to indicate the specific type of a JSON value, such as a string, number, boolean, etc.
+type Type int
+
+// Context represents a JSON value returned from the Get() function.
+// It stores information about a specific JSON element, including its type,
+// unprocessed string data, string representation, numeric value, index in the original JSON,
+// and the indexes of elements that match a path containing a '#'.
+type Context struct {
+	// kind is the JSON type (such as String, Number, Object, etc.).
+	kind Type
+
+	// unprocessed contains the raw JSON string that has not been processed or parsed.
+	unprocessed string
+
+	// strings contains the string value of the JSON element, if it is a string type.
+	strings string
+
+	// numeric contains the numeric value of the JSON element, if it is a number type.
+	numeric float64
+
+	// index holds the position of the unprocessed JSON value in the original JSON string.
+	// A value of 0 means the index is unknown.
+	index int
+
+	// indexes holds the indices of all elements that match a path containing the '#' query character.
+	indexes []int
+}
+```
+
+Type represents the different possible types for a JSON value.
+
+```go
+string
+false (bool)
+true (bool)
+number (float64, float32, int64, uint64)
+null (nil)
+```
+
+```go
+const (
+	// Null is a constant representing a JSON null value.
+	// In JSON, null is used to represent the absence of a value.
+	Null Type = iota
+	// False is a constant representing a JSON false boolean value.
+	// In JSON, false is a boolean value that represents a negative or off state.
+	False
+	// Number is a constant representing a JSON number value.
+	// In JSON, numbers can be integers or floating-point values.
+	Number
+	// String is a constant representing a JSON string value.
+	// In JSON, strings are sequences of characters enclosed in double quotes.
+	String
+	// True is a constant representing a JSON true boolean value.
+	// In JSON, true is a boolean value that represents a positive or on state.
+	True
+	// JSON is a constant representing a raw JSON block.
+	// This type can be used to represent any valid JSON object or array.
+	JSON
+)
+```
