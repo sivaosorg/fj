@@ -821,3 +821,79 @@ const (
 	JSON
 )
 ```
+
+## Functions
+
+```go
+func (ctx Context) Kind() Type // Kind returns the JSON type of the Context.
+
+func (ctx Context) Unprocessed() string // Unprocessed returns the raw, unprocessed JSON string for the Context.
+
+func (ctx Context) Numeric() float64 // Numeric returns the numeric value of the Context, if applicable.
+
+func (ctx Context) Index() int // Index returns the index of the unprocessed JSON value in the original JSON string.
+
+func (ctx Context) Indexes() []int // Indexes returns a slice of indices for elements matching a path containing the '#' character.
+
+// String returns a string representation of the Context value.
+// The output depends on the JSON type of the Context:
+//   - For `False` type: Returns "false".
+//   - For `True` type: Returns "true".
+//   - For `Number` type: Returns the numeric value as a string.
+//     If the numeric value was calculated, it formats the float value.
+//     Otherwise, it preserves the original unprocessed string if valid.
+//   - For `String` type: Returns the string value.
+//   - For `JSON` type: Returns the raw unprocessed JSON string.
+//   - For other types: Returns an empty string.
+func (ctx Context) String() string
+
+func (ctx Context) StringColored() string // StringColored returns a colored string representation of the Context value.
+
+func (ctx Context) WithStringColored(style *unify4g.Style) string // WithStringColored applies a customizable colored styling to the string representation of the Context value.
+
+func (ctx Context) Bool() bool // Bool converts the Context value into a boolean representation.
+
+func (ctx Context) Int64() int64 // Int64 converts the Context value into an integer representation (int64).
+
+func (ctx Context) Uint64() uint64 // Uint64 converts the Context value into an unsigned integer representation (uint64).
+
+func (ctx Context) Float64() float64 // Float64 converts the Context value into a floating-point representation (float64).
+
+func (ctx Context) Float32() float32 // Float32 converts the Context value into a floating-point representation (Float32).
+
+func (ctx Context) Time() time.Time // Time converts the Context value into a time.Time representation.
+
+func (ctx Context) WithTime(format string) (time.Time, error) // WithTime parses the Context value into a time.Time representation using a custom format.
+
+func (ctx Context) Array() []Context // Array returns an array of `Context` values derived from the current `Context`.
+
+func (ctx Context) IsObject() bool // IsObject checks if the current `Context` represents a JSON object.
+
+func (ctx Context) IsArray() bool // IsArray checks if the current `Context` represents a JSON array.
+
+func (ctx Context) IsBool() bool // IsBool checks if the current `Context` represents a JSON boolean value.
+
+func (ctx Context) Exists() bool // Exists returns true if the value exists (i.e., it is not Null and contains data).
+
+func (ctx Context) Value() interface{} // Value returns the corresponding Go type for the JSON value represented by the Context.
+
+func (ctx Context) Map() map[string]Context // Map returns a map of values extracted from a JSON object.
+
+func (ctx Context) Foreach(iterator func(key, value Context) bool) // Foreach iterates through the values of a JSON object or array, applying the provided iterator function.
+
+func (ctx Context) Get(path string) Context // Get searches for a specified path within a JSON structure and returns the corresponding result.
+
+// Path returns the original fj path for a Result where the Result came
+// from a simple query path that returns a single value.
+func (ctx Context) Path(json string) string
+
+// Paths returns the original fj paths for a Result where the Result came
+// from a simple query path that returns an array.
+func (ctx Context) Paths(json string) []string
+
+// Less compares two Context values (tokens) and returns true if the first token is considered less than the second one.
+// It performs comparisons based on the type of the tokens and their respective values.
+// The comparison order follows: Null < False < Number < String < True < JSON.
+// This function also supports case-insensitive comparisons for String type tokens based on the caseSensitive parameter.
+func (ctx Context) Less(token Context, caseSensitive bool) bool
+```
