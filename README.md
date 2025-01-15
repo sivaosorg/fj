@@ -727,5 +727,5 @@ func main() {
 
 > Output
 
-<video src="./assets/fjjsoncolored.mp4" controls="controls" style="max-width: 730px;">
+<video src="https://raw.githubusercontent.com/sivaosorg/fj/refs/heads/master/assets/fjjsoncolored.mp4" controls="controls" style="max-width: 730px;">
 </video>
