@@ -897,3 +897,29 @@ func (ctx Context) Paths(json string) []string
 // This function also supports case-insensitive comparisons for String type tokens based on the caseSensitive parameter.
 func (ctx Context) Less(token Context, caseSensitive bool) bool
 ```
+
+#### Array()
+
+The `ctx.Array()` method produces an array of values. If the result corresponds to a non-existent value, it will return an empty array. If the result is not a JSON array, a single-element array containing the result will be returned.
+
+#### Value()
+
+The `ctx.Value()` function retrieves an `interface{}`, requiring a type assertion and is typically one of these Go types:
+
+```go
+boolean >> bool
+number  >> float64, float32, int64, uint64
+string  >> string
+null    >> nil
+array   >> []interface{}
+object  >> map[string]interface{}
+```
+
+#### 64-bit un/integers
+
+The `ctx.Int64()` and `ctx.Uint64()` functions can handle the full 64-bit range, enabling support for large JSON integer values (Refer this link: [Min Safe Integer](https://tc39.es/ecma262/#sec-number.min_safe_integer); [Max Safe Integer](https://tc39.es/ecma262/#sec-number.max_safe_integer)).
+
+```go
+ctx.Int64() int64    // -9223372036854775808 to 9223372036854775807
+ctx.Uint64() uint64   // 0 to 18446744073709551615
+```
