@@ -641,3 +641,67 @@ func main() {
 	fmt.Println(ctx.Value()) // john
 }
 ```
+
+### JSON Color
+
+You can view JSON data in a color-formatted format, which is most suitable for debugging in the console terminal log.
+
+Currently, we already have some JSON color formats available as follows.
+
+```go
+fj.DarkStyle // DarkStyle uses darker tones for styling.
+fj.NeonStyle // NeonStyle is a vibrant style using neon-like colors.
+fj.PastelStyle // PastelStyle applies softer colors for a subdued look.
+fj.HighContrastStyle // HighContrastStyle uses bold and contrasting colors for better visibility.
+fj.VintageStyle // VintageStyle uses muted tones reminiscent of old terminal displays.
+fj.CyberpunkStyle // CyberpunkStyle mimics a futuristic neon cyberpunk aesthetic.
+fj.OceanStyle // OceanStyle is inspired by oceanic hues and soft contrasts.
+fj.FieryStyle // FieryStyle uses intense warm colors like flames.
+fj.GalaxyStyle // GalaxyStyle uses space-themed colors with a starry effect.
+fj.SunsetStyle // SunsetStyle mimics the colors of a sunset, using warm hues and deep purples.
+fj.JungleStyle // JungleStyle draws inspiration from a dense jungle with deep greens and browns.
+fj.MonochromeStyle // MonochromeStyle uses different shades of black and white for a simple, high-contrast theme.
+fj.ForestStyle // ForestStyle uses deep greens and browns to create a natural, earthy look.
+fj.IceStyle // IceStyle brings a cool, frosty aesthetic with blues and whites.
+fj.RetroStyle // RetroStyle brings back the vibrant colors from older computer systems and arcade games.
+fj.AutumnStyle // AutumnStyle uses rich oranges, reds, and browns, evoking the colors of fall.
+fj.GothicStyle // GothicStyle uses darker colors with a moody atmosphere, ideal for dark themes.
+fj.VaporWaveStyle // VaporWaveStyle embraces the retro aesthetics of vapor-wave, with bright neon and pastel colors.
+fj.VampireStyle // VampireStyle brings dark and sinister colors, with a touch of red for a spooky theme.
+fj.CarnivalStyle // CarnivalStyle is inspired by a fun, bright carnival atmosphere, full of vivid, exciting colors.
+fj.SteampunkStyle // SteampunkStyle has a vintage industrial look with brass and copper colors.
+fj.WoodlandStyle // WoodlandStyle blends earthy tones with deep forest greens and browns.
+fj.CandyStyle // CandyStyle is bright, with pastel hues that resemble candy colors.
+fj.TwilightStyle // TwilightStyle brings in dusky, cool tones reminiscent of dusk.
+fj.EarthStyle // EarthStyle reflects natural earthy colors with muted greens and browns.
+fj.ElectricStyle // ElectricStyle uses electric, bright neon colors for a futuristic vibe.
+fj.WitchingHourStyle // WitchingHourStyle combines deep purples with dark greens for a magical look.
+fj.MidnightStyle // MidnightStyle gives a mysterious and dark aesthetic, like a quiet midnight scene.
+fj.RetroFutureStyle // RetroFutureStyle combines retro tones with a futuristic neon palette for a vintage-tech feel.
+fj.ForestMistStyle // ForestMistStyle invokes the serene and cool vibes of a misty forest.
+fj.PrismStyle // PrismStyle offers a colorful, dazzling light prism effect for a modern, energetic look.
+fj.SpringStyle // SpringStyle brings the fresh, light colors of spring to life.
+fj.DesertStyle // DesertStyle evokes the warmth and serenity of a desert landscape.
+fj.SolarFlareStyle // SolarFlareStyle uses vibrant oranges and fiery reds, inspired by the intense heat of the sun.
+fj.IceQueenStyle // IceQueenStyle reflects a cool, frosty appearance with icy blues and silvers.
+fj.ForestGroveStyle // ForestGroveStyle brings earthy tones with a dense forest theme.
+fj.AutumnLeavesStyle // AutumnLeavesStyle uses warm, fall-inspired hues like browns, reds, and golden yellows.
+fj.VaporStyle // VaporStyle uses pastel tones and calming shades of pink, purple, and blue.
+fj.SunsetBoulevardStyle // SunsetBoulevardStyle mimics the stunning colors of a sunset, featuring warm oranges, pinks, and purples.
+fj.NeonCityStyle // NeonCityStyle is bold and energetic, with electrifying neons of blue, pink, and green.
+fj.MoonlitNightStyle // MoonlitNightStyle gives a serene and calm atmosphere with cool blues and soft silvers.
+fj.CandyShopStyle // CandyShopStyle features bright, sugary tones of pinks, blues, and yellows for a fun and sweet theme.
+fj.UnderwaterStyle // UnderwaterStyle is inspired by the deep ocean, featuring calming blues and aquatic greens.
+fj.OceanBreezeStyle // OceanBreezeStyle reflects the calm and refreshing hues of the ocean.
+fj.CandyPopStyle // CandyPopStyle brings a playful and sweet color palette, like a candy store.
+fj.NoirStyle // NoirStyle gives a film-noir inspired look with dark, moody colors.
+fj.GalacticStyle // GalacticStyle evokes the mysterious vastness of outer space with deep, cosmic hues.
+fj.VintagePastelStyle // VintagePastelStyle offers a retro aesthetic with soft, pastel tones for a gentle, nostalgic atmosphere.
+fj.VintageFilmStyle // VintageFilmStyle is inspired by the golden era of cinema, featuring muted golds, sepias, and classic black.
+fj.FireworksStyle // FireworksStyle captures the excitement of a night sky lit up by colorful fireworks, featuring bold reds, yellows, and purples.
+fj.ArcticSnowStyle // ArcticSnowStyle brings the cool, crisp whites and icy blues of the arctic tundra into the design.
+fj.ElectricVibeStyle // ElectricVibeStyle takes on high-energy neon tones with a touch of electric brightness.
+fj.DesertSunsetStyle // DesertSunsetStyle brings warm and deep hues inspired by the desert landscape at sunset.
+fj.PastelDreamStyle // PastelDreamStyle evokes a dreamy, soft pastel palette perfect for relaxed and whimsical visuals.
+fj.TropicalVibeStyle // TropicalVibeStyle draws inspiration from lush tropical jungles, with bright and vibrant greens and yellows.
+```
