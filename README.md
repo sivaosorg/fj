@@ -727,5 +727,9 @@ func main() {
 
 > Output
 
-<video src="https://raw.githubusercontent.com/sivaosorg/fj/refs/heads/master/assets/fjjsoncolored.mp4" controls="controls" style="max-width: 730px;">
-</video>
+<!-- <video src="https://raw.githubusercontent.com/sivaosorg/fj/refs/heads/master/assets/fjjsoncolored.mp4" controls="controls" style="max-width: 730px;">
+</video> -->
+
+[JSON Colored](https://raw.githubusercontent.com/sivaosorg/fj/refs/heads/master/assets/fjjsoncolored.mp4)
+
+[![Watch the video](https://i.sstatic.net/Vp2cE.png)](./assets/fjjsoncolored.mp4)
