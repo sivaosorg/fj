@@ -1,6 +1,7 @@
 package fj
 
 import (
+	"io"
 	"strconv"
 	"strings"
 	"time"
@@ -92,6 +93,61 @@ func Parse(json string) Context {
 		value.index = i
 	}
 	return value
+}
+
+// ParseBufio reads a JSON string from an `io.Reader` and parses it into a Context.
+//
+// This function combines the reading and parsing operations. It first reads the JSON
+// string using the `BufioRead` function, then processes the string using the `Parse`
+// function to extract details about the first valid JSON element. If reading the JSON
+// fails, the returned Context contains the encountered error.
+//
+// Parameters:
+//   - in: An `io.Reader` from which the JSON string will be read. This could be a file,
+//     network connection, or any other source that implements the `io.Reader` interface.
+//
+// Returns:
+//   - A `Context` representing the parsed JSON element. If an error occurs during the
+//     reading process, the `err` field of the `Context` is set with the error, and the
+//     other fields remain empty.
+//
+// Example Usage:
+//
+//	// Reading JSON from a file
+//	file, err := os.Open("example.json")
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	defer file.Close()
+//
+//	ctx := ParseBufio(file)
+//	if ctx.err != nil {
+//	    log.Fatalf("Failed to parse JSON: %v", ctx.err)
+//	}
+//	fmt.Println(ctx.kind)
+//
+//	// Reading JSON from standard input
+//	fmt.Println("Enter JSON:")
+//	ctx = ParseBufio(os.Stdin)
+//	if ctx.err != nil {
+//	    log.Fatalf("Failed to parse JSON: %v", ctx.err)
+//	}
+//	fmt.Println(ctx.kind)
+//
+// Notes:
+//   - This function is particularly useful when working with JSON data from streams or large files.
+//   - The `Parse` function is responsible for the actual parsing, while this function ensures the
+//     JSON string is read correctly before parsing begins.
+//   - If the input JSON is malformed or invalid, the returned Context from `Parse` will reflect
+//     the issue as an empty Context or an error in the `err` field.
+func ParseBufio(in io.Reader) Context {
+	json, err := BufioRead(in)
+	if err != nil {
+		return Context{
+			err: err,
+		}
+	}
+	return Parse(json)
 }
 
 // ParseBytes parses a JSON byte slice and returns a Context representing the parsed value.
@@ -1577,6 +1633,47 @@ func (ctx Context) Less(token Context, caseSensitive bool) bool {
 		return ctx.numeric < token.numeric
 	}
 	return ctx.unprocessed < token.unprocessed
+}
+
+// IsError checks if there is an error associated with the Context.
+//
+// This function checks whether the `err` field of the Context is set. If there is
+// an error (i.e., `err` is not `nil`), the function returns `true`; otherwise, it returns `false`.
+//
+// Example Usage:
+//
+//	ctx := Context{err: fmt.Errorf("invalid JSON")}
+//	fmt.Println(ctx.IsError()) // Output: true
+//
+//	ctx = Context{}
+//	fmt.Println(ctx.IsError()) // Output: false
+//
+// Returns:
+//   - bool: `true` if the Context has an error, `false` otherwise.
+func (ctx Context) IsError() bool {
+	return ctx.err != nil
+}
+
+// ErrMessage returns the error message if there is an error in the Context.
+//
+// If the Context has an error (i.e., `err` is not `nil`), this function returns
+// the error message as a string. If there is no error, it returns an empty string.
+//
+// Example Usage:
+//
+//	ctx := Context{err: fmt.Errorf("parsing error")}
+//	fmt.Println(ctx.ErrMessage()) // Output: "parsing error"
+//
+//	ctx = Context{}
+//	fmt.Println(ctx.ErrMessage()) // Output: ""
+//
+// Returns:
+//   - string: The error message if there is an error, or an empty string if there is no error.
+func (ctx Context) ErrMessage() string {
+	if ctx.IsError() {
+		return ctx.err.Error()
+	}
+	return ""
 }
 
 // parseJSONElements processes a JSON string (from the `Context`) and attempts to parse it as either a JSON array or a JSON object.

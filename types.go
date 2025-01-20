@@ -31,6 +31,12 @@ type Context struct {
 
 	// indexes holds the indices of all elements that match a path containing the '#' query character.
 	indexes []int
+
+	// err stores any error encountered during processing or parsing of the JSON element.
+	// This field is used to capture issues such as invalid JSON syntax, type mismatches,
+	// or any other error that may occur while retrieving or interpreting the JSON value.
+	// If no error occurred, this field will be nil.
+	err error
 }
 
 // queryContext is a simplified version of the Context struct,

@@ -13,6 +13,73 @@ import (
 	"github.com/sivaosorg/unify4g"
 )
 
+// LastNLines returns the last `num` lines from the given slice of strings.
+//
+// This function extracts the last `num` lines from a slice of strings (`lines`).
+// If `num` is greater than the number of lines available, it returns all lines.
+// If `num` is less than or equal to 0, it returns an empty slice.
+//
+// Parameters:
+//   - lines: A slice of strings representing the input lines.
+//   - num: An integer specifying the number of lines to retrieve from the end.
+//
+// Returns:
+//   - A slice of strings containing the last `num` lines from the input.
+//     If `num` is greater than the length of `lines`, all lines are returned.
+//     If `num` is less than or equal to 0, an empty slice is returned.
+//
+// Details:
+//   - The function calculates the starting index for slicing the input lines by
+//     subtracting `num` from the total length of the lines. If the result is negative,
+//     it starts from the beginning of the slice.
+//   - It uses slicing to efficiently extract the last `num` lines.
+//
+// Example Usage:
+//
+//	// Example: Extracting the last 3 lines from a slice of strings
+//	lines := []string{
+//	    "Line 1",
+//	    "Line 2",
+//	    "Line 3",
+//	    "Line 4",
+//	    "Line 5",
+//	}
+//
+//	lastLines := LastNLines(lines, 3)
+//	for _, line := range lastLines {
+//	    fmt.Println(line)
+//	}
+//	// Output:
+//	// Line 3
+//	// Line 4
+//	// Line 5
+//
+//	// Example: Requesting more lines than available
+//	lastLines = LastNLines(lines, 10)
+//	for _, line := range lastLines {
+//	    fmt.Println(line)
+//	}
+//	// Output:
+//	// Line 1
+//	// Line 2
+//	// Line 3
+//	// Line 4
+//	// Line 5
+//
+//	// Example: Requesting zero or negative lines
+//	lastLines = LastNLines(lines, 0)
+//	fmt.Println(len(lastLines)) // Output: 0
+func LastNLines(lines []string, num int) []string {
+	if num <= 0 || len(lines) == 0 {
+		return lines
+	}
+	var slices []string
+	for i := len(lines) - num; i < len(lines); i++ {
+		slices = append(slices, lines[i])
+	}
+	return slices
+}
+
 // getNumeric extracts the numeric portion of a JSON-encoded string and converts it to a float.
 //
 // This function processes a JSON-encoded string to extract a numeric value
