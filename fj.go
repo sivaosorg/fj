@@ -1419,6 +1419,41 @@ func (ctx Context) Get(path string) Context {
 	return q
 }
 
+// GetMul searches for multiple paths within a JSON structure and returns a slice of results.
+//
+// This function allows you to search for multiple paths in the JSON structure, each represented as a string.
+// It returns a slice of `Context` instances for each of the specified paths. The paths can be used to navigate
+// nested arrays or objects.
+//
+// The `path` parameters specify the JSON paths to search for, and the function will attempt to retrieve the values
+// associated with those paths. Each result is returned as a `Context` containing information about the matched
+// JSON value, including its type, string representation, numeric value, and index in the original JSON.
+//
+// Parameters:
+//   - path: One or more strings representing the paths in the JSON structure to search for. The paths may include
+//     array indices and object keys separated by dots or brackets (e.g., "user.name", "items[0].price").
+//
+// Returns:
+//   - []Context: A slice of `Context` instances, each containing the result of searching for one of the paths.
+//     Each `Context` may represent various types of JSON values (e.g., string, number, object, array). If no match
+//     is found for a path, the corresponding `Context` will be empty.
+//
+// Example Usage:
+//
+//	ctx := Context{kind: JSON, unprocessed: "{\"user\": {\"name\": \"John\"}, \"items\": [1, 2, 3]}"}
+//	results := ctx.GetMul("user.name", "items[1]")
+//	// results[0].strings will contain "John" for the "user.name" path,
+//	// results[1].numeric will contain 2 for the "items[1]" path.
+//
+// Notes:
+//   - This function uses the `GetMul` function (presumably another function) to process the `unprocessed` JSON string
+//     and search for each of the specified paths.
+//   - Each result is returned as a separate `Context` for each path, allowing for multiple values to be retrieved
+//     at once from the JSON structure.
+func (ctx Context) GetMul(path ...string) []Context {
+	return GetMul(ctx.unprocessed, path...)
+}
+
 // Path returns the original fj path for a Result where the Result came
 // from a simple query path that returns a single value. For example, if the
 // `Get` function was called with a query path like:
