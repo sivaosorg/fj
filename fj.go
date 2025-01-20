@@ -2,6 +2,7 @@ package fj
 
 import (
 	"io"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -148,6 +149,43 @@ func ParseBufio(in io.Reader) Context {
 		}
 	}
 	return Parse(json)
+}
+
+// ParseFilepath reads a JSON string from a file specified by the filepath and parses it into a Context.
+//
+// This function opens the specified file, reads its contents using the `ParseBufio` function,
+// and returns a Context representing the parsed JSON element. If any error occurs during
+// file reading or JSON parsing, the returned Context will include the error details.
+//
+// Parameters:
+//   - filepath: The path to the JSON file to be read and parsed.
+//
+// Returns:
+//   - A `Context` representing the parsed JSON element. If an error occurs during the
+//     file reading or parsing process, the `err` field of the returned Context will be set
+//     with the error, and the other fields will remain empty.
+//
+// Example Usage:
+//
+//	ctx := ParseFilepath("example.json")
+//	if ctx.err != nil {
+//	    log.Fatalf("Failed to parse JSON: %v", ctx.err)
+//	}
+//	fmt.Println(ctx.String())
+//
+// Notes:
+//   - This function is useful for reading and parsing JSON directly from files.
+//   - The file is opened and closed automatically within this function, and any errors encountered
+//     are captured in the returned `Context`.
+func ParseFilepath(filepath string) Context {
+	file, err := os.Open(filepath)
+	if err != nil {
+		return Context{
+			err: err,
+		}
+	}
+	defer file.Close()
+	return ParseBufio(file)
 }
 
 // ParseBytes parses a JSON byte slice and returns a Context representing the parsed value.

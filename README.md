@@ -350,6 +350,26 @@ func main() {
 }
 ```
 
+> or
+
+```go
+package main
+
+import (
+	"fmt"
+
+	"github.com/sivaosorg/fj"
+)
+
+func main() {
+	ctx := fj.ParseFilepath("./logs/data.json")
+	value := ctx.Get(`stock.0.symbol`)
+	fmt.Println(value.String()) // MMM
+	value = ctx.Get(`bank.0.@minify`)
+	fmt.Println(value.String()) // {"isActive":false,"balance":"$1,404.23","age":26,"eyeColor":"blue","name":"Stark Jenkins","gender":"male","company":"HINWAY","email":"starkjenkins@hinway.com","phone":"+1 (943) 542-3591","address":"766 Cooke Court, Dunbar, Connecticut, 9512"}
+}
+```
+
 ### Validation
 
 The `Get*` and `Parse*` functions assume that the JSON is properly structured. Invalid JSON won't cause a panic, but it could lead to unexpected outcomes.
