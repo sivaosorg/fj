@@ -934,6 +934,8 @@ func (ctx Context) Foreach(iterator func(key, value Context) bool) // Foreach it
 
 func (ctx Context) Get(path string) Context // Get searches for a specified path within a JSON structure and returns the corresponding result.
 
+func (ctx Context) GetMul(path ...string) []Context // GetMul searches for multiple paths within a JSON structure and returns a slice of results.
+
 // Path returns the original fj path for a Result where the Result came
 // from a simple query path that returns a single value.
 func (ctx Context) Path(json string) string
