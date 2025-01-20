@@ -336,7 +336,7 @@ import (
 )
 
 func main() {
-	file, err := os.Open("./logs/data.json")
+	file, err := os.Open("./assets/data.json")
 	if err != nil {
 		return
 	}
@@ -362,7 +362,7 @@ import (
 )
 
 func main() {
-	ctx := fj.ParseFilepath("./logs/data.json")
+	ctx := fj.ParseFilepath("./assets/data.json")
 	value := ctx.Get(`stock.0.symbol`)
 	fmt.Println(value.String()) // MMM
 	value = ctx.Get(`bank.0.@minify`)
