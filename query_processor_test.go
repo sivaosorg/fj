@@ -55,7 +55,7 @@ func TestPathHandlers(t *testing.T) {
 		{
 			name:     "ArrayElementHandler - array index",
 			handler:  &ArrayElementHandler{},
-			segment:  "users[0]",
+			segment:  "users.0",
 			expected: true,
 		},
 		{
@@ -102,7 +102,7 @@ func TestHandlerChain(t *testing.T) {
 		expected bool
 	}{
 		{"Simple property", "users", true},
-		{"Array access", "users[0]", true},
+		{"Array access", "users.0", true},
 		{"Wildcard", "users.*", true},
 		{"Conditional", "users[age>25]", true},
 		{"Nested property", "config.database.host", true},
@@ -148,7 +148,7 @@ func TestQueryStrategies(t *testing.T) {
 			name:     "ArrayStrategy - array path",
 			strategy: &ArrayStrategy{},
 			query: &Query{
-				Path: "users[0]",
+				Path: "users.0",
 			},
 			canExecute: true,
 		},
@@ -303,7 +303,7 @@ func TestQueryExecution(t *testing.T) {
 		{
 			name: "Array access execution",
 			query: NewQueryBuilder().
-				Path("users[0].name").
+				Path("users.0.name").
 				Build(),
 			hasResult: true,
 		},
@@ -404,7 +404,7 @@ func TestQueryOptimizer(t *testing.T) {
 	optimizer := NewQueryOptimizer()
 	
 	query := &Query{
-		Path: "users[0].name",
+		Path: "users.0.name",
 	}
 	
 	// Test optimized execution
@@ -445,13 +445,13 @@ func TestBackwardCompatibility(t *testing.T) {
 	ctx := Parse(testJSONData)
 	
 	// Test that existing Get() function still works
-	result1 := ctx.Get("users[0].name")
+	result1 := ctx.Get("users.0.name")
 	if !result1.Exists() {
 		t.Error("Existing Get() function should still work")
 	}
 	
 	// Test that new query system produces same results
-	query := NewQueryBuilder().Path("users[0].name").Build()
+	query := NewQueryBuilder().Path("users.0.name").Build()
 	result2 := query.Execute(ctx)
 	
 	if result1.String() != result2.String() {
@@ -467,14 +467,14 @@ func BenchmarkExistingGet(b *testing.B) {
 	b.ResetTimer()
 	
 	for i := 0; i < b.N; i++ {
-		result := ctx.Get("users[0].name")
+		result := ctx.Get("users.0.name")
 		_ = result.String()
 	}
 }
 
 func BenchmarkNewQuerySystem(b *testing.B) {
 	ctx := Parse(testJSONData)
-	query := NewQueryBuilder().Path("users[0].name").Build()
+	query := NewQueryBuilder().Path("users.0.name").Build()
 	b.ResetTimer()
 	
 	for i := 0; i < b.N; i++ {
@@ -485,7 +485,7 @@ func BenchmarkNewQuerySystem(b *testing.B) {
 
 func BenchmarkOptimizedQuery(b *testing.B) {
 	ctx := Parse(testJSONData)
-	query := NewQueryBuilder().Path("users[0].name").Build()
+	query := NewQueryBuilder().Path("users.0.name").Build()
 	b.ResetTimer()
 	
 	for i := 0; i < b.N; i++ {

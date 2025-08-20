@@ -308,9 +308,45 @@ func (b *FluentQueryBuilder) Limit(limit int) *FluentQueryBuilder {
 	return b
 }
 
-// Offset overrides the base Offset method to return FluentQueryBuilder
-func (b *FluentQueryBuilder) Offset(offset int) *FluentQueryBuilder {
-	b.QueryBuilder.Offset(offset)
+// GreaterThanOrEqual overrides the base GreaterThanOrEqual method to return FluentQueryBuilder
+func (b *FluentQueryBuilder) GreaterThanOrEqual(field string, value interface{}) *FluentQueryBuilder {
+	b.QueryBuilder.GreaterThanOrEqual(field, value)
+	return b
+}
+
+// LessThanOrEqual overrides the base LessThanOrEqual method to return FluentQueryBuilder  
+func (b *FluentQueryBuilder) LessThanOrEqual(field string, value interface{}) *FluentQueryBuilder {
+	b.QueryBuilder.LessThanOrEqual(field, value)
+	return b
+}
+
+// Contains overrides the base Contains method to return FluentQueryBuilder
+func (b *FluentQueryBuilder) Contains(field string, value interface{}) *FluentQueryBuilder {
+	b.QueryBuilder.Contains(field, value)
+	return b
+}
+
+// Equals overrides the base Equals method to return FluentQueryBuilder
+func (b *FluentQueryBuilder) Equals(field string, value interface{}) *FluentQueryBuilder {
+	b.QueryBuilder.Equals(field, value)
+	return b
+}
+
+// NotEquals overrides the base NotEquals method to return FluentQueryBuilder
+func (b *FluentQueryBuilder) NotEquals(field string, value interface{}) *FluentQueryBuilder {
+	b.QueryBuilder.NotEquals(field, value)
+	return b
+}
+
+// GreaterThan overrides the base GreaterThan method to return FluentQueryBuilder
+func (b *FluentQueryBuilder) GreaterThan(field string, value interface{}) *FluentQueryBuilder {
+	b.QueryBuilder.GreaterThan(field, value)
+	return b
+}
+
+// LessThan overrides the base LessThan method to return FluentQueryBuilder
+func (b *FluentQueryBuilder) LessThan(field string, value interface{}) *FluentQueryBuilder {
+	b.QueryBuilder.LessThan(field, value)
 	return b
 }
 
