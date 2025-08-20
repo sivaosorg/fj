@@ -2003,3 +2003,12 @@ func init() {
 		"padRight":   transformPadRight,
 	}
 }
+
+// =============================================================================
+// NEW OOP ARCHITECTURE - BACKWARD COMPATIBILITY LAYER
+// =============================================================================
+
+// The following section provides the new Object-Oriented architecture 
+// while maintaining 100% backward compatibility with existing code.
+
+// This will be implemented in a separate init function to avoid circular imports
